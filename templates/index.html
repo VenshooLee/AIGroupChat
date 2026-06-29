@@ -1393,11 +1393,16 @@
         function insertToEditor(btn) {
             const content = btn.closest('.message').querySelector('.message-content').textContent;
             const range = quill.getSelection();
+            let insertIndex;
             if (range) {
-                quill.insertText(range.index, '\n' + content + '\n');
+                insertIndex = range.index;
             } else {
-                quill.insertText(0, '\n' + content + '\n');
+                insertIndex = 0;
             }
+            quill.insertText(insertIndex, '\n' + content + '\n');
+            // 将光标移动到插入文字的末尾
+            const newIndex = insertIndex + 1 + content.length + 1;
+            quill.setSelection(newIndex, 0);
             showToast('Inserted into editor!', 'success');
         }
 
