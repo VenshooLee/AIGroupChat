@@ -13,6 +13,7 @@ build/
 dist/
 *.egg-info/
 !GroupChat.spec
+!AIGroupChat.spec
 
 # macOS
 .DS_Store
