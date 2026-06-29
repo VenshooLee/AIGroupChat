@@ -1,0 +1,13 @@
+services:
+  app:
+    build: .
+    ports:
+      - "5005:5000"
+    environment:
+      - MONGO_URI=mongodb://host.docker.internal:27017/
+      - MONGO_DB=groupchat_db
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped

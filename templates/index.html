@@ -1,0 +1,1677 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Group Chat & Document Editor</title>
+    <link rel="icon" href="/static/icons/chat.png" type="image/png">
+    <link href="/static/quill/quill.snow.css" rel="stylesheet">
+    <script src="/static/quill/quill.min.js"></script>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --primary-hover: #1d4ed8;
+            --secondary: #64748b;
+            --accent: #10b981;
+            --background: #f8fafc;
+            --surface: #ffffff;
+            --text: #1e293b;
+            --text-muted: #64748b;
+            --border: #e2e8f0;
+            --error: #ef4444;
+            --user-bg: #dbeafe;
+            --assistant-bg: #f1f5f9;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--background);
+            color: var(--text);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Header */
+        .header {
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            padding: 12px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+        }
+
+        .header h1 {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--primary);
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+
+        /* Header */
+        .header {
+            display: flex;
+            align-items: center;
+            padding: 12px 20px;
+            border-bottom: 1px solid var(--border);
+            background: var(--background);
+        }
+
+        .header h1 {
+            font-size: 18px;
+            margin: 0;
+            margin-right: 16px;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 8px;
+            margin-right: auto;
+        }
+
+        .settings-btn {
+            margin-left: auto;
+        }
+
+        .header-icon {
+            width: 16px;
+            height: 16px;
+            margin-right: 6px;
+            vertical-align: middle;
+        }
+
+        .btn-icon-white {
+            width: 16px;
+            height: 16px;
+            margin-right: 6px;
+            vertical-align: middle;
+            filter: brightness(0) invert(1);
+        }
+
+        /* Conversations Sidebar */
+        .conversations-sidebar {
+            width: 280px;
+            background: var(--surface);
+            border-right: 1px solid var(--border);
+            display: none;
+            flex-direction: column;
+        }
+
+        .conversations-sidebar.active {
+            display: flex;
+        }
+
+        .conversations-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .conversations-header h3 {
+            font-size: 14px;
+            margin: 0;
+        }
+
+        .close-sidebar {
+            background: none;
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
+            color: var(--text-muted);
+            padding: 4px 8px;
+        }
+
+        .close-sidebar:hover {
+            color: var(--text);
+        }
+
+        .conversations-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 8px;
+        }
+
+        .conversation-item {
+            display: flex;
+            align-items: center;
+            padding: 10px 12px;
+            margin-bottom: 4px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 13px;
+        }
+
+        .conversation-item:hover {
+            background: var(--background);
+        }
+
+        .conversation-item.active {
+            background: var(--primary);
+            color: white;
+        }
+
+        .conversation-content {
+            flex: 1;
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .conversation-delete {
+            opacity: 0;
+            background: none;
+            border: none;
+            font-size: 18px;
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 4px;
+            color: inherit;
+            transition: all 0.2s;
+        }
+
+        .conversation-item:hover .conversation-delete {
+            opacity: 0.5;
+        }
+
+        .conversation-delete:hover {
+            opacity: 1 !important;
+            background: rgba(255, 0, 0, 0.2);
+            color: #ff4444;
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-hover);
+        }
+
+        .btn-secondary {
+            background: var(--surface);
+            color: var(--text);
+            border: 1px solid var(--border);
+        }
+
+        .btn-secondary:hover {
+            background: var(--background);
+        }
+
+        .btn-icon {
+            padding: 8px;
+            background: transparent;
+            border: 1px solid var(--border);
+        }
+
+        /* Main Layout */
+        .main {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+        }
+
+        /* Chat Panel */
+        .chat-panel {
+            width: 40%;
+            min-width: 350px;
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            background: var(--surface);
+        }
+
+        .chat-header {
+            padding: 16px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .chat-header h2 {
+            font-size: 16px;
+            margin-bottom: 12px;
+        }
+
+        .model-selector {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .model-checkbox {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            background: var(--background);
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.2s;
+            border: 1px solid transparent;
+        }
+
+        .model-checkbox:hover {
+            border-color: #ccc;
+        }
+
+        .model-checkbox.active {
+            border-color: var(--primary);
+            color: var(--text);
+        }
+
+        .model-checkbox input {
+            display: none;
+        }
+
+        .model-checkbox .model-icon {
+            width: 16px;
+            height: 16px;
+            display: inline-block;
+            vertical-align: middle;
+        }
+
+        .model-checkbox .model-icon img,
+        .model-checkbox .model-icon svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px;
+        }
+
+        .message {
+            margin-bottom: 16px;
+            padding: 12px 16px;
+            border-radius: 12px;
+            max-width: 85%;
+            position: relative;
+        }
+
+        .message.user {
+            background: var(--user-bg);
+            margin-left: auto;
+        }
+
+        .message.assistant {
+            background: var(--assistant-bg);
+        }
+
+        .message-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .message-model {
+            font-weight: 600;
+            color: var(--primary);
+        }
+
+        .message-content {
+            font-size: 14px;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        .thinking-section {
+            background: #f5f5f5;
+            border-radius: 8px;
+            padding: 10px 12px;
+            margin-bottom: 10px;
+            font-size: 13px;
+        }
+
+        .thinking-header {
+            font-weight: 600;
+            color: #666;
+            margin-bottom: 6px;
+        }
+
+        .thinking-content {
+            color: #555;
+            white-space: pre-wrap;
+            word-break: break-word;
+            line-height: 1.5;
+        }
+
+        .message-actions {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            display: flex;
+            gap: 4px;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .message:hover .message-actions {
+            opacity: 1;
+        }
+
+        .message-btn {
+            padding: 4px 8px;
+            font-size: 11px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .message-btn:hover {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+
+        .chat-input-area {
+            padding: 16px;
+            border-top: 1px solid var(--border);
+        }
+
+        .chat-input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 14px;
+            resize: none;
+            font-family: inherit;
+            min-height: 80px;
+        }
+
+        .chat-input:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        .chat-input-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 8px;
+        }
+
+        .chat-hint {
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .send-btn {
+            padding: 8px 20px;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+        }
+
+        .send-btn:hover {
+            background: var(--primary-hover);
+        }
+
+        .send-btn:disabled {
+            background: var(--secondary);
+            cursor: not-allowed;
+        }
+
+        /* Editor Panel */
+        .editor-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: var(--surface);
+        }
+
+        .editor-header {
+            padding: 16px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .doc-title {
+            flex: 1;
+            font-size: 16px;
+            border: none;
+            outline: none;
+            font-weight: 500;
+            color: var(--text-muted);
+        }
+
+        .doc-status {
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .doc-status.saving {
+            color: var(--accent);
+        }
+
+        /* Quill Editor Customization */
+        .editor-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        #editor {
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .ql-toolbar {
+            border: none !important;
+            border-bottom: 1px solid var(--border) !important;
+            background: var(--background);
+        }
+
+        .ql-container {
+            border: none !important;
+            font-family: inherit;
+            font-size: 14px;
+        }
+
+        .ql-editor {
+            min-height: 300px;
+            padding: 20px 40px;
+        }
+
+        .ql-editor.ql-blank::before {
+            font-style: normal;
+            color: var(--text-muted);
+        }
+
+        .editor-footer {
+            padding: 12px 20px;
+            border-top: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .copyright {
+            font-size: 10px;
+            color: var(--text-muted);
+        }
+
+        .editor-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .copyright {
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+
+        /* Document List Sidebar */
+        .doc-sidebar {
+            width: 220px;
+            border-left: 1px solid var(--border);
+            background: var(--background);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .doc-sidebar-header {
+            padding: 12px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .doc-sidebar-header h3 {
+            font-size: 13px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .doc-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 8px;
+        }
+
+        .doc-item {
+            display: flex;
+            align-items: center;
+            padding: 10px 12px;
+            margin-bottom: 4px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .doc-item:hover {
+            background: var(--surface);
+        }
+
+        .doc-item.active {
+            background: var(--primary);
+            color: white;
+        }
+
+        .doc-item-content {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .doc-item-title {
+            font-size: 13px;
+            font-weight: 500;
+            margin-bottom: 4px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .doc-item-date {
+            font-size: 11px;
+            opacity: 0.7;
+        }
+
+        .doc-delete-btn {
+            opacity: 0;
+            background: none;
+            border: none;
+            color: inherit;
+            font-size: 18px;
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 4px;
+            transition: all 0.2s;
+            line-height: 1;
+        }
+
+        .doc-item:hover .doc-delete-btn {
+            opacity: 0.5;
+        }
+
+        .doc-delete-btn:hover {
+            opacity: 1 !important;
+            background: rgba(255, 0, 0, 0.2);
+            color: #ff4444;
+        }
+
+        /* Modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal {
+            background: var(--surface);
+            border-radius: 12px;
+            width: 90%;
+            max-width: 500px;
+            max-height: 80vh;
+            overflow: hidden;
+        }
+
+        .modal-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-header h2 {
+            font-size: 18px;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: var(--text-muted);
+        }
+
+        .modal-body {
+            padding: 20px;
+            max-height: 60vh;
+            overflow-y: auto;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 6px;
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--text-muted);
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 14px;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        .modal-footer {
+            padding: 16px 20px;
+            border-top: 1px solid var(--border);
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+        }
+
+        /* Toast */
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            padding: 12px 20px;
+            background: var(--text);
+            color: white;
+            border-radius: 8px;
+            font-size: 14px;
+            opacity: 0;
+            transform: translateY(20px);
+            transition: all 0.3s;
+            z-index: 1001;
+        }
+
+        .toast.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .toast.success {
+            background: var(--accent);
+        }
+
+        .toast.error {
+            background: var(--error);
+        }
+
+        /* Resizer */
+        .resizer {
+            width: 4px;
+            cursor: col-resize;
+            background: var(--border);
+            transition: background 0.2s;
+        }
+
+        .resizer:hover {
+            background: var(--primary);
+        }
+
+        /* Empty State */
+        .empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: var(--text-muted);
+            padding: 40px;
+            text-align: center;
+        }
+
+        .empty-state-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+        }
+
+        .empty-state h3 {
+            margin-bottom: 8px;
+            color: var(--text);
+        }
+
+        /* Model Settings */
+        .model-settings-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .model-setting-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px;
+            background: var(--background);
+            border-radius: 8px;
+        }
+
+        .model-setting-item .model-checkbox {
+            flex-shrink: 0;
+        }
+
+        .model-setting-item .form-group {
+            flex: 1;
+            margin-bottom: 0;
+        }
+
+        .model-setting-item input[type="password"] {
+            width: 100%;
+        }
+
+        .model-setting-item label {
+            margin-bottom: 4px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .model-setting-block {
+            padding: 12px 0;
+            border-bottom: 1px solid #eee;
+        }
+
+        .model-setting-block .model-label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+            font-size: 13px;
+            font-weight: normal;
+            cursor: pointer;
+        }
+
+        .model-setting-block .model-label input[type="checkbox"] {
+            margin: 0;
+            width: 14px;
+            height: 14px;
+        }
+
+        .model-setting-block .model-icon {
+            width: 18px;
+            height: 18px;
+            display: inline-block;
+            vertical-align: middle;
+        }
+
+        .model-setting-block .model-icon svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        .model-setting-block .api-status {
+            color: #4CAF50;
+            font-weight: bold;
+            margin-left: 5px;
+        }
+
+        .model-setting-block .api-key-input {
+            width: 100%;
+            padding: 10px 12px;
+            font-size: 13px;
+            box-sizing: border-box;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <h1>AI Group Chat</h1>
+        <div class="header-actions">
+            <button class="btn btn-secondary" onclick="toggleConversations()" title="History"><img src="/static/icons/chat-history-line.svg" class="header-icon">History</button>
+            <button class="btn btn-secondary" onclick="newConversation()" title="New Chat"><img src="/static/icons/chat-new-line.svg" class="header-icon">New Chat</button>
+        </div>
+        <button class="btn btn-secondary settings-btn" onclick="openSettings()"><img src="/static/icons/chat-settings-line.svg" class="header-icon">Settings</button>
+    </header>
+
+    <main class="main">
+        <!-- Conversations Sidebar -->
+        <aside class="conversations-sidebar" id="conversationsSidebar">
+            <div class="conversations-header">
+                <h3>History</h3>
+                <button class="close-sidebar" onclick="toggleConversations()">×</button>
+            </div>
+            <div class="conversations-list" id="conversationsList">
+                <!-- Conversations loaded dynamically -->
+            </div>
+        </aside>
+
+        <section class="chat-panel">
+            <div class="chat-header">
+                <h2>Select Models</h2>
+                <div class="model-selector" id="modelSelector">
+                    <!-- Models loaded dynamically -->
+                </div>
+            </div>
+            <div class="chat-messages" id="chatMessages">
+                <div class="empty-state">
+                    <div class="empty-state-icon">💬</div>
+                    <h3>Start a Conversation</h3>
+                    <p>Select models and send your first message</p>
+                </div>
+            </div>
+            <div class="chat-input-area">
+                <textarea class="chat-input" id="chatInput" placeholder="Type your message here..." rows="3"></textarea>
+                <div class="chat-input-footer">
+                    <span class="chat-hint">Enter to send, Shift+Enter for new line</span>
+                    <button class="send-btn" id="sendBtn" onclick="sendMessage()"><img src="/static/icons/chat-send-line.svg" class="btn-icon-white">Send</button>
+                </div>
+            </div>
+        </section>
+
+        <div class="resizer" id="resizer"></div>
+
+        <section class="editor-panel">
+            <div class="editor-header">
+                <input type="text" class="doc-title" id="docTitle" placeholder="Document Title" value="Untitled Document">
+                <span class="doc-status" id="docStatus"></span>
+            </div>
+            <div class="editor-container">
+                <div id="editor"></div>
+            </div>
+            <div class="editor-footer">
+                <span class="copyright">Developed by Venshoo, 2026. All rights reserved.</span>
+                <div class="editor-actions">
+                    <button class="btn btn-secondary" onclick="newDocument()">New</button>
+                    <button class="btn btn-secondary" onclick="saveDocument()">Save</button>
+                    <button class="btn btn-primary" onclick="exportDocument()">Export .docx</button>
+                </div>
+            </div>
+        </section>
+
+        <aside class="doc-sidebar">
+            <div class="doc-sidebar-header">
+                <h3>Documents</h3>
+            </div>
+            <div class="doc-list" id="docList">
+                <!-- Documents loaded dynamically -->
+            </div>
+        </aside>
+    </main>
+
+    <!-- Settings Modal -->
+    <div class="modal-overlay" id="settingsModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h2>Settings</h2>
+                <button class="modal-close" onclick="closeSettings()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <h3 style="margin-bottom: 16px; color: var(--text-muted);">API Keys</h3>
+                <div class="model-settings-list" id="modelSettingsList">
+                    <!-- Model settings loaded dynamically -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeSettings()">Cancel</button>
+                <button class="btn btn-primary" onclick="saveSettings()">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div class="toast" id="toast"></div>
+
+    <script src="https://cdn.quilljs.com/1.3.7/quill.min.js"></script>
+    <script>
+        // Global state
+        let currentConversationId = null;
+        let currentDocumentId = null;
+        let selectedModels = ['openai'];
+        let availableModels = [];
+        let quill = null;
+        let autoSaveTimer = null;
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', async () => {
+            initEditor();
+            await loadModels();
+            await loadSettings();
+            await loadDocuments();
+            initResizer();
+            initKeyboardShortcuts();
+        });
+
+        // Conversations
+        function toggleConversations() {
+            const sidebar = document.getElementById('conversationsSidebar');
+            sidebar.classList.toggle('active');
+            if (sidebar.classList.contains('active')) {
+                loadConversations();
+            }
+        }
+
+        async function loadConversations() {
+            try {
+                const response = await fetch('/api/conversations');
+                const conversations = await response.json();
+                renderConversationsList(conversations);
+            } catch (error) {
+                console.error('Failed to load conversations:', error);
+            }
+        }
+
+        async function loadDocuments() {
+            try {
+                const response = await fetch('/api/documents');
+                const documents = await response.json();
+                renderDocList(documents);
+            } catch (error) {
+                console.error('Failed to load documents:', error);
+            }
+        }
+
+        function renderConversationsList(conversations) {
+            const container = document.getElementById('conversationsList');
+            if (conversations.length === 0) {
+                container.innerHTML = '<p style="padding: 16px; color: var(--text-muted); font-size: 13px;">No conversations yet</p>';
+                return;
+            }
+            container.innerHTML = conversations.map(conv => `
+                <div class="conversation-item ${currentConversationId === conv._id ? 'active' : ''}">
+                    <div class="conversation-content" onclick="loadConversation('${conv._id}')">
+                        ${conv.title || 'Untitled'}
+                    </div>
+                    <button class="conversation-delete" onclick="deleteConversation('${conv._id}', event)">×</button>
+                </div>
+            `).join('');
+        }
+
+        async function deleteConversation(convId, event) {
+            event.stopPropagation();
+            if (!confirm('Delete this conversation?')) return;
+            try {
+                await fetch(`/api/conversations/${convId}`, { method: 'DELETE' });
+                if (currentConversationId === convId) {
+                    newConversation();
+                }
+                await loadConversations();
+                showToast('Conversation deleted', 'success');
+            } catch (error) {
+                showToast('Failed to delete: ' + error.message, 'error');
+            }
+        }
+
+        async function loadConversation(convId) {
+            try {
+                const response = await fetch(`/api/conversations/${convId}`);
+                const conv = await response.json();
+                currentConversationId = convId;
+                renderConversationMessages(conv.messages || []);
+                toggleConversations();
+            } catch (error) {
+                showToast('Failed to load conversation: ' + error.message, 'error');
+            }
+        }
+
+        function renderConversationMessages(messages) {
+            const container = document.getElementById('chatMessages');
+            if (messages.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">💬</div>
+                        <h3>Start a Conversation</h3>
+                        <p>Select models and send your first message</p>
+                    </div>
+                `;
+                return;
+            }
+            container.innerHTML = '';
+            messages.forEach(msg => {
+                if (msg.role === 'user') {
+                    addMessageToChat('user', msg.content);
+                } else {
+                    addMessageToChat('assistant', msg.content, msg.model);
+                }
+            });
+        }
+
+        function newConversation() {
+            currentConversationId = null;
+            const container = document.getElementById('chatMessages');
+            container.innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-state-icon">💬</div>
+                    <h3>Start a Conversation</h3>
+                    <p>Select models and send your first message</p>
+                </div>
+            `;
+        }
+
+        // Quill Editor
+        function initEditor() {
+            quill = new Quill('#editor', {
+                theme: 'snow',
+                placeholder: 'Start writing your document...',
+                modules: {
+                    toolbar: [
+                        ['bold', 'italic', 'underline'],
+                        [{ 'header': [1, 2, 3, false] }],
+                        [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                        [{ 'align': [] }],
+                        ['cleaner']
+                    ]
+                }
+            });
+
+            // Auto-save on change
+            quill.on('text-change', () => {
+                if (currentDocumentId) {
+                    scheduleAutoSave();
+                }
+            });
+        }
+
+        function scheduleAutoSave() {
+            clearTimeout(autoSaveTimer);
+            updateDocStatus('Unsaved changes...');
+            autoSaveTimer = setTimeout(() => {
+                if (currentDocumentId) {
+                    saveDocument(true);
+                }
+            }, 30000);
+        }
+
+        function updateDocStatus(text) {
+            const status = document.getElementById('docStatus');
+            status.textContent = text;
+            status.classList.toggle('saving', text.includes('Saving') || text.includes('saved'));
+        }
+
+        // API Calls
+        async function loadModels() {
+            try {
+                const response = await fetch('/api/models');
+                allModels = await response.json();
+
+                // Get enabled models from settings
+                const settingsResponse = await fetch('/api/settings');
+                const settings = await settingsResponse.json();
+
+                // Use enabled_models if available, otherwise fall back to configured models
+                if (settings.enabled_models && settings.enabled_models.length > 0) {
+                    selectedModels = settings.enabled_models;
+                } else {
+                    // Fallback: use models with configured API keys
+                    selectedModels = Object.entries(settings.api_keys || {})
+                        .filter(([_, configured]) => configured)
+                        .map(([model, _]) => model);
+                }
+
+                renderModelSelector();
+            } catch (error) {
+                console.error('Failed to load models:', error);
+            }
+        }
+
+        async function loadSettings() {
+            try {
+                const response = await fetch('/api/settings');
+                currentSettings = await response.json();
+                // Keep selectedModels in sync with enabled models
+                if (currentSettings.enabled_models && currentSettings.enabled_models.length > 0) {
+                    selectedModels = currentSettings.enabled_models;
+                }
+                renderModelSelector();
+            } catch (error) {
+                console.error('Failed to load settings:', error);
+            }
+        }
+
+        async function loadDocuments() {
+            try {
+                const response = await fetch('/api/documents');
+                const documents = await response.json();
+                renderDocList(documents);
+            } catch (error) {
+                console.error('Failed to load documents:', error);
+            }
+        }
+
+        // Render functions
+        function renderModelSelector() {
+            const container = document.getElementById('modelSelector');
+
+            // Get enabled models from currentSettings
+            const enabledModelIds = currentSettings?.enabled_models || [];
+
+            // Filter to only show enabled models
+            const enabledModels = allModels.filter(m => enabledModelIds.includes(m.id));
+
+            if (enabledModels.length === 0) {
+                container.innerHTML = '<span style="color: var(--text-muted); font-size: 13px;">No models enabled</span>';
+                return;
+            }
+
+            // Show enabled models, mark selected ones as active
+            container.innerHTML = enabledModels.map(model => {
+                const isActive = selectedModels.includes(model.id);
+                return `
+                <div class="model-checkbox ${isActive ? 'active' : ''}" data-model="${model.id}">
+                    <input type="checkbox" value="${model.id}" ${isActive ? 'checked' : ''}>
+                    <span>${renderIcon(model.icon)} ${model.name}</span>
+                </div>
+            `}).join('');
+
+            // Add click handlers to the divs (not labels)
+            container.querySelectorAll('.model-checkbox').forEach(el => {
+                el.addEventListener('click', (e) => {
+                    // Don't toggle if clicking directly on checkbox
+                    if (e.target.tagName === 'INPUT') return;
+
+                    const checkbox = el.querySelector('input');
+                    checkbox.checked = !checkbox.checked;
+                    el.classList.toggle('active', checkbox.checked);
+
+                    // Update selected models
+                    selectedModels = Array.from(container.querySelectorAll('input:checked'))
+                        .map(input => input.value);
+                });
+            });
+        }
+
+        function renderDocList(documents) {
+            const container = document.getElementById('docList');
+            if (documents.length === 0) {
+                container.innerHTML = '<div class="empty-state" style="padding: 20px;"><p>No documents yet</p></div>';
+                return;
+            }
+            container.innerHTML = documents.map(doc => `
+                <div class="doc-item ${currentDocumentId === doc._id ? 'active' : ''}">
+                    <div class="doc-item-content" onclick="loadDocument('${doc._id}')">
+                        <div class="doc-item-title">${doc.title}</div>
+                        <div class="doc-item-date">${formatDate(doc.updated_at)}</div>
+                    </div>
+                    <button class="doc-delete-btn" onclick="deleteDocument('${doc._id}', event)" title="Delete">×</button>
+                </div>
+            `).join('');
+        }
+
+        async function deleteDocument(docId, event) {
+            event.stopPropagation();
+            if (!confirm('Are you sure you want to delete this document?')) return;
+
+            try {
+                await fetch(`/api/documents/${docId}`, { method: 'DELETE' });
+                if (currentDocumentId === docId) {
+                    currentDocumentId = null;
+                    quill.setContents([]);
+                    document.getElementById('docTitle').value = '';
+                    updateDocStatus('');
+                }
+                await loadDocuments();
+                showToast('Document deleted', 'success');
+            } catch (error) {
+                showToast('Failed to delete: ' + error.message, 'error');
+            }
+        }
+
+        function formatDate(dateStr) {
+            if (!dateStr) return '';
+            const date = new Date(dateStr);
+            return date.toLocaleString('zh-CN', {
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: false,
+                timeZoneName: 'short'
+            });
+        }
+
+        function addMessageToChat(role, content, model = null) {
+            const container = document.getElementById('chatMessages');
+            const emptyState = container.querySelector('.empty-state');
+            if (emptyState) {
+                emptyState.remove();
+            }
+
+            const message = document.createElement('div');
+            message.className = `message ${role}`;
+            const header = model ? `<div class="message-header"><span class="message-model">${model}</span></div>` : '';
+            const actions = role === 'assistant' && model ? `
+                <div class="message-actions">
+                    <button class="message-btn" onclick="copyMessage(this)" title="Copy">Copy</button>
+                    <button class="message-btn" onclick="insertToEditor(this)" title="Insert to Editor">Insert</button>
+                </div>
+            ` : '';
+
+            message.innerHTML = `
+                ${header}
+                <div class="message-content">${escapeHtml(cleanMarkdown(content))}</div>
+                ${actions}
+            `;
+            container.appendChild(message);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function cleanMarkdown(text) {
+            // 移除 Markdown 格式符号
+            return text
+                .replace(/^#{1,6}\s*/gm, '') // 移除标题符号
+                .replace(/\*\*([^*]+)\*\*/g, '$1') // 移除粗体
+                .replace(/\*([^*]+)\*/g, '$1') // 移除斜体
+                .replace(/__([^_]+)__/g, '$1') // 移除粗体
+                .replace(/_([^_]+)_/g, '$1') // 移除斜体
+                .replace(/`([^`]+)`/g, '$1') // 移除行内代码
+                .replace(/^>\s*/gm, '') // 移除引用
+                .replace(/^[-*+]\s+/gm, '') // 移除列表符号
+                .replace(/^\d+\.\s+/gm, ''); // 移除有序列表
+        }
+
+        // Chat functions
+        async function sendMessage() {
+            const input = document.getElementById('chatInput');
+            const message = input.value.trim();
+
+            if (!message) return;
+            if (selectedModels.length === 0) {
+                showToast('Please select at least one model', 'error');
+                return;
+            }
+
+            const sendBtn = document.getElementById('sendBtn');
+            sendBtn.disabled = true;
+            sendBtn.innerHTML = '<img src="/static/icons/chat-thinking-line.svg" class="btn-icon-white">Thinking...';
+
+            // Clear input immediately
+            input.value = '';
+
+            // Add user message
+            addMessageToChat('user', message);
+
+            try {
+                // Create conversation if needed
+                if (!currentConversationId) {
+                    const convResponse = await fetch('/api/conversations', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ title: message.substring(0, 50) })
+                    });
+                    const conv = await convResponse.json();
+                    currentConversationId = conv.id;
+                }
+
+                const response = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        message,
+                        models: selectedModels,
+                        conversation_id: currentConversationId
+                    })
+                });
+
+                const data = await response.json();
+
+                // Add assistant responses (remove markdown formatting)
+                for (const resp of data.responses) {
+                    const cleanContent = resp.content
+                        .replace(/^#{1,6}\s+/gm, '')  // Remove # headers
+                        .replace(/\*\*([^*]+)\*\*/g, '$1')  // Remove **bold**
+                        .replace(/\*([^*]+)\*/g, '$1')  // Remove *italic*
+                        .replace(/__([^_]+)__/g, '$1')  // Remove __bold__
+                        .replace(/_([^_]+)_/g, '$1')  // Remove _italic_
+                        .replace(/`([^`]+)`/g, '$1')  // Remove `code`
+                        .replace(/```[\s\S]*?```/g, (match) => match.replace(/```\w*\n?/g, '').trim())  // Remove code blocks
+                        .replace(/^\s*[-*+]\s+/gm, '')  // Remove list markers
+                        .replace(/^\s*\d+\.\s+/gm, '')  // Remove numbered list markers
+                        .replace(/^\s*>\s+/gm, '');  // Remove blockquotes
+                    addMessageToChat('assistant', cleanContent, resp.model);
+                }
+            } catch (error) {
+                showToast('Failed to send message: ' + error.message, 'error');
+            } finally {
+                sendBtn.disabled = false;
+                sendBtn.innerHTML = '<img src="/static/icons/chat-send-line.svg" class="btn-icon-white">Send';
+            }
+        }
+
+        function copyMessage(btn) {
+            const content = btn.closest('.message').querySelector('.message-content').textContent;
+            navigator.clipboard.writeText(content);
+            showToast('Copied to clipboard!', 'success');
+        }
+
+        function insertToEditor(btn) {
+            const content = btn.closest('.message').querySelector('.message-content').textContent;
+            const range = quill.getSelection();
+            if (range) {
+                quill.insertText(range.index, '\n' + content + '\n');
+            } else {
+                quill.insertText(0, '\n' + content + '\n');
+            }
+            showToast('Inserted into editor!', 'success');
+        }
+
+        // Document functions
+        async function newDocument() {
+            try {
+                const response = await fetch('/api/documents', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title: 'Untitled Document', content: '' })
+                });
+                const doc = await response.json();
+                currentDocumentId = doc.id;
+                document.getElementById('docTitle').value = doc.title;
+                quill.setContents([]);
+                await loadDocuments();
+                updateDocStatus('');
+            } catch (error) {
+                showToast('Failed to create document: ' + error.message, 'error');
+            }
+        }
+
+        async function loadDocument(id) {
+            try {
+                const response = await fetch(`/api/documents/${id}`);
+                const doc = await response.json();
+                console.log('=== loadDocument ===');
+                console.log('doc:', doc);
+                console.log('doc.title:', doc.title);
+                console.log('doc.content:', doc.content);
+                currentDocumentId = doc._id;
+                document.getElementById('docTitle').value = doc.title;
+
+                // Set editor content - Quill clipboard.convert is synchronous
+                if (doc.content) {
+                    const root = quill.clipboard.convert(doc.content);
+                    quill.setContents(root);
+                } else {
+                    quill.setContents([]);
+                }
+
+                await loadDocuments();
+                updateDocStatus('');
+            } catch (error) {
+                showToast('Failed to load document: ' + error.message, 'error');
+            }
+        }
+
+        async function saveDocument(silent = false) {
+            if (!currentDocumentId) {
+                // Create new document
+                const title = document.getElementById('docTitle').value || 'Untitled Document';
+                try {
+                    const response = await fetch('/api/documents', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ title, content: '' })
+                    });
+                    const doc = await response.json();
+                    currentDocumentId = doc.id;
+                } catch (error) {
+                    showToast('Failed to save: ' + error.message, 'error');
+                    return;
+                }
+            }
+
+            updateDocStatus('Saving...');
+            const title = document.getElementById('docTitle').value;
+            const content = quill.root.innerHTML;
+
+            try {
+                await fetch(`/api/documents/${currentDocumentId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title, content })
+                });
+                await loadDocuments();
+                updateDocStatus('Saved');
+                if (!silent) showToast('Document saved!', 'success');
+            } catch (error) {
+                showToast('Failed to save: ' + error.message, 'error');
+            }
+        }
+
+        async function exportDocument() {
+            if (!currentDocumentId) {
+                showToast('Please save the document first', 'error');
+                return;
+            }
+
+            window.open(`/api/documents/${currentDocumentId}/export`, '_blank');
+        }
+
+        // Settings
+        let allModels = [];
+        let currentSettings = null;
+
+        // Helper function to render model icon
+        function renderIcon(icon) {
+            if (icon && icon.startsWith('/static/')) {
+                return `<img src="${icon}" class="model-icon" alt="">`;
+            }
+            return `<span class="model-icon">${icon}</span>`;
+        }
+
+        function openSettings() {
+            document.getElementById('settingsModal').classList.add('active');
+            loadSettingsIntoForm();
+        }
+
+        function closeSettings() {
+            document.getElementById('settingsModal').classList.remove('active');
+        }
+
+        async function loadSettingsIntoForm() {
+            console.log('=== loadSettingsIntoForm called ===');
+            // Get current settings
+            const response = await fetch('/api/settings');
+            const settings = await response.json();
+
+            console.log('Settings loaded:', settings);
+            console.log('All models:', allModels);
+
+            // Render model settings
+            const container = document.getElementById('modelSettingsList');
+            let html = '';
+
+            for (const model of allModels) {
+                const apiKeys = settings.api_keys || {};
+                const keyValue = apiKeys[model.id];
+                // hasKey: 如果是字符串且非空，或者是布尔值 true
+                const hasKey = (typeof keyValue === 'string' && keyValue.length > 0) || keyValue === true;
+
+                console.log(`Model ${model.id}: keyValue=`, keyValue, `hasKey=`, hasKey);
+
+                const placeholderText = hasKey ? '••••••••••••••••••••••••••••••••' : 'API Key';
+                const statusIcon = hasKey ? '✓' : '';
+                console.log(`  -> placeholderText="${placeholderText}" statusIcon="${statusIcon}"`);
+
+                html += `
+                <div class="model-setting-block">
+                    <label class="model-label">
+                        <input type="checkbox" id="enabled_${model.id}" ${settings.enabled_models?.includes(model.id) ? 'checked' : ''}>
+                        ${renderIcon(model.icon)}
+                        ${model.name}
+                        <span class="api-status">${statusIcon}</span>
+                    </label>
+                    <input type="text" class="api-key-input" id="${model.id}Key" placeholder="${placeholderText}" value="">
+                </div>`;
+            }
+
+            container.innerHTML = html;
+        }
+
+        async function saveSettings() {
+            const apiKeys = {};
+            const enabledModels = [];
+
+            // Get existing settings to preserve existing API keys
+            const settingsResponse = await fetch('/api/settings');
+            const existingSettings = await settingsResponse.json();
+
+            // Collect API keys and enabled models
+            allModels.forEach(model => {
+                const keyInput = document.getElementById(`${model.id}Key`);
+                const enabledCheckbox = document.getElementById(`enabled_${model.id}`);
+
+                // Only save if user entered a new key (not placeholder)
+                if (keyInput && keyInput.value && keyInput.value !== '••••••••') {
+                    apiKeys[model.id] = keyInput.value;
+                } else if (existingSettings.api_keys && typeof existingSettings.api_keys[model.id] === 'string' && existingSettings.api_keys[model.id].trim()) {
+                    // Preserve existing key only if it's a valid string
+                    apiKeys[model.id] = existingSettings.api_keys[model.id];
+                }
+                if (enabledCheckbox && enabledCheckbox.checked) {
+                    enabledModels.push(model.id);
+                }
+            });
+
+            const settings = {
+                api_keys: apiKeys,
+                enabled_models: enabledModels
+            };
+
+            try {
+                await fetch('/api/settings', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(settings)
+                });
+
+                // Update currentSettings and selectedModels
+                currentSettings = {
+                    ...currentSettings,
+                    api_keys: apiKeys,
+                    enabled_models: enabledModels
+                };
+                selectedModels = enabledModels;
+                renderModelSelector();
+
+                closeSettings();
+                showToast('Settings saved!', 'success');
+            } catch (error) {
+                showToast('Failed to save settings: ' + error.message, 'error');
+            }
+        }
+
+        // Keyboard shortcuts
+        function initKeyboardShortcuts() {
+            const input = document.getElementById('chatInput');
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
+                    e.preventDefault();
+                    sendMessage();
+                }
+            });
+
+            document.addEventListener('keydown', (e) => {
+                if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+                    e.preventDefault();
+                    saveDocument();
+                }
+            });
+        }
+
+        // Resizer
+        function initResizer() {
+            const resizer = document.getElementById('resizer');
+            const chatPanel = document.querySelector('.chat-panel');
+            let isResizing = false;
+
+            resizer.addEventListener('mousedown', (e) => {
+                isResizing = true;
+                document.body.style.cursor = 'col-resize';
+            });
+
+            document.addEventListener('mousemove', (e) => {
+                if (!isResizing) return;
+                const containerWidth = document.querySelector('.main').offsetWidth;
+                const newWidth = e.clientX;
+                if (newWidth > 300 && newWidth < containerWidth - 300) {
+                    chatPanel.style.width = newWidth + 'px';
+                }
+            });
+
+            document.addEventListener('mouseup', () => {
+                isResizing = false;
+                document.body.style.cursor = '';
+            });
+        }
+
+        // Toast
+        function showToast(message, type = '') {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = 'toast show ' + type;
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
+        }
+
+        // Close modal on escape
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closeSettings();
+            }
+        });
+
+        // Close modal on backdrop click
+        document.getElementById('settingsModal').addEventListener('click', (e) => {
+            if (e.target.classList.contains('modal-overlay')) {
+                closeSettings();
+            }
+        });
+    </script>
+</body>
+</html>
