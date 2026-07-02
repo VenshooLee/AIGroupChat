@@ -1,5 +1,5 @@
 import requests
-from typing import Optional, Dict
+from typing import Optional, Dict, Generator
 from datetime import datetime, timezone, timedelta
 
 class AIService:
@@ -40,6 +40,41 @@ class AIService:
             return self._chat_gemini(messages, system_prompt)
         else:
             return {"content": f"[Error: Unknown model '{model}']", "thinking": None}
+
+    def chat_stream(self, model: str, messages: list, system_prompt: str = ""):
+        """Stream chat request to specified model. Yields text chunks."""
+        utc_now = datetime.now(timezone.utc)
+        cst = timezone(timedelta(hours=8))
+        current_time = utc_now.astimezone(cst).strftime("%Y年%m月%d日 %H:%M:%S")
+        time_info = f"当前日期时间(北京时间)：{current_time}"
+        if system_prompt:
+            system_prompt = f"{time_info}\n\n{system_prompt}"
+        else:
+            system_prompt = time_info
+        model_lower = model.lower()
+        
+        if model_lower == "openai":
+            yield from self._chat_openai_stream(messages, system_prompt)
+        elif model_lower == "deepseek":
+            yield from self._chat_deepseek_stream(messages, system_prompt)
+        elif model_lower == "minimax":
+            yield from self._chat_minimax_stream(messages, system_prompt)
+        elif model_lower == "claude":
+            yield from self._chat_claude_stream(messages, system_prompt)
+        elif model_lower == "doubao":
+            yield from self._chat_doubao_stream(messages, system_prompt)
+        elif model_lower == "kimi":
+            yield from self._chat_kimi_stream(messages, system_prompt)
+        elif model_lower == "glm":
+            yield from self._chat_glm_stream(messages, system_prompt)
+        elif model_lower == "qwen":
+            yield from self._chat_qwen_stream(messages, system_prompt)
+        elif model_lower == "yuanbao":
+            yield from self._chat_yuanbao_stream(messages, system_prompt)
+        elif model_lower == "gemini":
+            yield from self._chat_gemini_stream(messages, system_prompt)
+        else:
+            yield f"[Error: Unknown model '{model}']"
 
     def _get_messages_with_system(self, messages: list, system_prompt: str) -> list:
         """Add system prompt to messages"""
@@ -382,3 +417,434 @@ class AIService:
             return {"content": content, "thinking": None}
         except requests.exceptions.RequestException as e:
             return {"content": f"[Error: Gemini API request failed - {str(e)}]", "thinking": None}
+
+    # ==================== STREAMING METHODS ====================
+
+    def _chat_openai_stream(self, messages: list, system_prompt: str):
+        api_key = self.api_keys.get("openai")
+        if not api_key or not api_key.strip():
+            yield "[Error: OpenAI API key not configured]"
+            return
+        try:
+            headers = {
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json"
+            }
+            data = {
+                "model": "gpt-3.5-turbo",
+                "messages": self._get_messages_with_system(messages, system_prompt),
+                "temperature": 0.7,
+                "stream": True
+            }
+            response = requests.post(
+                "https://api.openai.com/v1/chat/completions",
+                headers=headers,
+                json=data,
+                timeout=60,
+                stream=True
+            )
+            response.raise_for_status()
+            for line in response.iter_lines():
+                if line:
+                    line = line.decode('utf-8')
+                    if line.startswith('data: '):
+                        data_str = line[6:]
+                        if data_str == '[DONE]':
+                            break
+                        import json
+                        try:
+                            data_json = json.loads(data_str)
+                            content = data_json.get("choices", [{}])[0].get("delta", {}).get("content", "")
+                            if content:
+                                yield content
+                        except:
+                            pass
+        except Exception as e:
+            yield f"[Error: {str(e)}]"
+
+    def _chat_deepseek_stream(self, messages: list, system_prompt: str):
+        api_key = self.api_keys.get("deepseek")
+        if not api_key or not api_key.strip():
+            yield "[Error: DeepSeek API key not configured]"
+            return
+        try:
+            headers = {
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json"
+            }
+            data = {
+                "model": "deepseek-chat",
+                "messages": self._get_messages_with_system(messages, system_prompt),
+                "temperature": 0.7,
+                "max_tokens": 4096,
+                "stream": True
+            }
+            response = requests.post(
+                "https://api.deepseek.com/chat/completions",
+                headers=headers,
+                json=data,
+                timeout=120,
+                stream=True
+            )
+            response.raise_for_status()
+            for line in response.iter_lines():
+                if line:
+                    line = line.decode('utf-8')
+                    if line.startswith('data: '):
+                        data_str = line[6:]
+                        if data_str == '[DONE]':
+                            break
+                        import json
+                        try:
+                            data_json = json.loads(data_str)
+                            content = data_json.get("choices", [{}])[0].get("delta", {}).get("content", "")
+                            if content:
+                                yield content
+                        except:
+                            pass
+        except Exception as e:
+            yield f"[Error: {str(e)}]"
+
+    def _chat_minimax_stream(self, messages: list, system_prompt: str):
+        # MiniMax: use non-streaming for compatibility
+        api_key = self.api_keys.get("minimax")
+        if not api_key or not api_key.strip():
+            yield "[Error: MiniMax API key not configured]"
+            return
+        try:
+            headers = {
+                "x-api-key": api_key,
+                "Content-Type": "application/json",
+                "anthropic-version": "2023-06-01"
+            }
+            minimax_messages = []
+            for m in messages:
+                minimax_messages.append({
+                    "role": "user" if m["role"] == "user" else "assistant",
+                    "content": m["content"]
+                })
+            data = {
+                "model": "MiniMax-M3",
+                "max_tokens": 4096,
+                "messages": minimax_messages
+            }
+            if system_prompt:
+                data["system"] = system_prompt
+            response = requests.post(
+                "https://api.minimaxi.com/anthropic/v1/messages",
+                headers=headers,
+                json=data,
+                timeout=60
+            )
+            response.raise_for_status()
+            result = response.json()
+            content = result.get("content", [])
+            if isinstance(content, list):
+                for block in content:
+                    if block.get("type") == "text":
+                        text = block.get("text", "")
+                        for char in text:
+                            yield char
+            elif "content" in result and isinstance(result["content"], str):
+                for char in result["content"]:
+                    yield char
+        except Exception as e:
+            yield f"[Error: {str(e)}]"
+
+    def _chat_claude_stream(self, messages: list, system_prompt: str):
+        api_key = self.api_keys.get("anthropic")
+        if not api_key or not api_key.strip():
+            yield "[Error: Anthropic API key not configured]"
+            return
+        try:
+            headers = {
+                "x-api-key": api_key,
+                "Content-Type": "application/json",
+                "anthropic-version": "2023-06-01"
+            }
+            claude_messages = []
+            for m in messages:
+                claude_messages.append({
+                    "role": "user" if m["role"] == "user" else "assistant",
+                    "content": m["content"]
+                })
+            data = {
+                "model": "claude-3-haiku-20240307",
+                "max_tokens": 1024,
+                "messages": claude_messages,
+                "stream": True
+            }
+            if system_prompt:
+                data["system"] = system_prompt
+            response = requests.post(
+                "https://api.anthropic.com/v1/messages",
+                headers=headers,
+                json=data,
+                timeout=60,
+                stream=True
+            )
+            response.raise_for_status()
+            full_content = ""
+            for line in response.iter_lines():
+                if line:
+                    line = line.decode('utf-8')
+                    if line.startswith('data: '):
+                        import json
+                        try:
+                            data_json = json.loads(line[6:])
+                            delta = data_json.get("delta", {})
+                            text = delta.get("text", "")
+                            if text:
+                                yield text
+                                full_content += text
+                        except:
+                            pass
+            if not full_content:
+                yield "[Error: Claude streaming response empty]"
+        except Exception as e:
+            yield f"[Error: {str(e)}]"
+
+    def _chat_doubao_stream(self, messages: list, system_prompt: str):
+        api_key = self.api_keys.get("doubao")
+        if not api_key or not api_key.strip():
+            yield "[Error: Doubao API key not configured]"
+            return
+        try:
+            headers = {
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json"
+            }
+            data = {
+                "model": "doubao-pro-32k",
+                "messages": self._get_messages_with_system(messages, system_prompt),
+                "temperature": 0.7,
+                "stream": True
+            }
+            response = requests.post(
+                "https://ark.cn-beijing.volces.com/api/v3/chat/completions",
+                headers=headers,
+                json=data,
+                timeout=60,
+                stream=True
+            )
+            response.raise_for_status()
+            for line in response.iter_lines():
+                if line:
+                    line = line.decode('utf-8')
+                    if line.startswith('data: '):
+                        data_str = line[6:]
+                        if data_str == '[DONE]':
+                            break
+                        import json
+                        try:
+                            data_json = json.loads(data_str)
+                            content = data_json.get("choices", [{}])[0].get("delta", {}).get("content", "")
+                            if content:
+                                yield content
+                        except:
+                            pass
+        except Exception as e:
+            yield f"[Error: {str(e)}]"
+
+    def _chat_kimi_stream(self, messages: list, system_prompt: str):
+        api_key = self.api_keys.get("kimi")
+        if not api_key or not api_key.strip():
+            yield "[Error: Kimi API key not configured]"
+            return
+        try:
+            headers = {
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json"
+            }
+            data = {
+                "model": "moonshot-v1-8k",
+                "messages": self._get_messages_with_system(messages, system_prompt),
+                "temperature": 0.7,
+                "stream": True
+            }
+            response = requests.post(
+                "https://api.moonshot.cn/v1/chat/completions",
+                headers=headers,
+                json=data,
+                timeout=60,
+                stream=True
+            )
+            response.raise_for_status()
+            for line in response.iter_lines():
+                if line:
+                    line = line.decode('utf-8')
+                    if line.startswith('data: '):
+                        data_str = line[6:]
+                        if data_str == '[DONE]':
+                            break
+                        import json
+                        try:
+                            data_json = json.loads(data_str)
+                            content = data_json.get("choices", [{}])[0].get("delta", {}).get("content", "")
+                            if content:
+                                yield content
+                        except:
+                            pass
+        except Exception as e:
+            yield f"[Error: {str(e)}]"
+
+    def _chat_glm_stream(self, messages: list, system_prompt: str):
+        api_key = self.api_keys.get("glm")
+        if not api_key or not api_key.strip():
+            yield "[Error: GLM API key not configured]"
+            return
+        try:
+            headers = {
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json"
+            }
+            data = {
+                "model": "glm-4",
+                "messages": self._get_messages_with_system(messages, system_prompt),
+                "temperature": 0.7,
+                "stream": True
+            }
+            response = requests.post(
+                "https://open.bigmodel.cn/api/paas/v4/chat/completions",
+                headers=headers,
+                json=data,
+                timeout=60,
+                stream=True
+            )
+            response.raise_for_status()
+            for line in response.iter_lines():
+                if line:
+                    line = line.decode('utf-8')
+                    if line.startswith('data: '):
+                        data_str = line[6:]
+                        if data_str == '[DONE]':
+                            break
+                        import json
+                        try:
+                            data_json = json.loads(data_str)
+                            content = data_json.get("choices", [{}])[0].get("delta", {}).get("content", "")
+                            if content:
+                                yield content
+                        except:
+                            pass
+        except Exception as e:
+            yield f"[Error: {str(e)}]"
+
+    def _chat_qwen_stream(self, messages: list, system_prompt: str):
+        api_key = self.api_keys.get("qwen")
+        if not api_key or not api_key.strip():
+            yield "[Error: Qwen API key not configured]"
+            return
+        try:
+            headers = {
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json"
+            }
+            data = {
+                "model": "qwen-plus",
+                "messages": self._get_messages_with_system(messages, system_prompt),
+                "temperature": 0.7,
+                "stream": True
+            }
+            response = requests.post(
+                "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions",
+                headers=headers,
+                json=data,
+                timeout=60,
+                stream=True
+            )
+            response.raise_for_status()
+            for line in response.iter_lines():
+                if line:
+                    line = line.decode('utf-8')
+                    if line.startswith('data: '):
+                        data_str = line[6:]
+                        if data_str == '[DONE]':
+                            break
+                        import json
+                        try:
+                            data_json = json.loads(data_str)
+                            content = data_json.get("choices", [{}])[0].get("delta", {}).get("content", "")
+                            if content:
+                                yield content
+                        except:
+                            pass
+        except Exception as e:
+            yield f"[Error: {str(e)}]"
+
+    def _chat_yuanbao_stream(self, messages: list, system_prompt: str):
+        api_key = self.api_keys.get("yuanbao")
+        if not api_key or not api_key.strip():
+            yield "[Error: Yuanbao API key not configured]"
+            return
+        try:
+            headers = {
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json"
+            }
+            data = {
+                "model": "hunyuan",
+                "messages": self._get_messages_with_system(messages, system_prompt),
+                "temperature": 0.7,
+                "stream": True
+            }
+            response = requests.post(
+                "https://api.hunyuan.cloud.tencent.com/hunyuan/v1/chat/completions",
+                headers=headers,
+                json=data,
+                timeout=60,
+                stream=True
+            )
+            response.raise_for_status()
+            for line in response.iter_lines():
+                if line:
+                    line = line.decode('utf-8')
+                    if line.startswith('data: '):
+                        data_str = line[6:]
+                        if data_str == '[DONE]':
+                            break
+                        import json
+                        try:
+                            data_json = json.loads(data_str)
+                            content = data_json.get("choices", [{}])[0].get("delta", {}).get("content", "")
+                            if content:
+                                yield content
+                        except:
+                            pass
+        except Exception as e:
+            yield f"[Error: {str(e)}]"
+
+    def _chat_gemini_stream(self, messages: list, system_prompt: str):
+        # Gemini doesn't support true streaming via generateContent, return full response
+        api_key = self.api_keys.get("gemini")
+        if not api_key or not api_key.strip():
+            yield "[Error: Gemini API key not configured]"
+            return
+        try:
+            headers = {"Content-Type": "application/json"}
+            gemini_messages = []
+            for m in messages:
+                gemini_messages.append({
+                    "role": "user" if m["role"] == "user" else "model",
+                    "parts": [{"text": m["content"]}]
+                })
+            data = {
+                "contents": gemini_messages,
+                "generationConfig": {"temperature": 0.7, "maxOutputTokens": 4096}
+            }
+            if system_prompt:
+                data["systemInstruction"] = {"parts": [{"text": system_prompt}]}
+            response = requests.post(
+                f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}",
+                headers=headers,
+                json=data,
+                timeout=60
+            )
+            response.raise_for_status()
+            result = response.json()
+            content = result.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
+            # Stream character by character for effect
+            for char in content:
+                yield char
+        except Exception as e:
+            yield f"[Error: {str(e)}]"

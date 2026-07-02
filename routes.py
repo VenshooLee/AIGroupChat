@@ -1,7 +1,8 @@
-from flask import Blueprint, request, jsonify, send_file, current_app
+from flask import Blueprint, request, jsonify, send_file, current_app, Response
 from io import BytesIO
 from docx import Document
 from bs4 import BeautifulSoup
+import json
 
 api = Blueprint('api', __name__, url_prefix='/api')
 
@@ -123,6 +124,82 @@ def chat():
         "user_message": message,
         "responses": results
     })
+
+
+@api.route('/chat/stream', methods=['POST'])
+def chat_stream():
+    """Streaming chat endpoint using Server-Sent Events"""
+    from services import AIService
+    from datetime import datetime, timezone, timedelta
+    
+    data = request.json
+    message = data.get('message', '')
+    models = data.get('models', ['openai'])
+    conversation_id = data.get('conversation_id')
+
+    if not message:
+        return jsonify({"error": "Message is required"}), 400
+
+    # Get settings and conversation data BEFORE starting the stream
+    settings = current_app.settings_model.get()
+    api_keys = settings.get('api_keys', {})
+    api_keys = {k.lower(): v for k, v in api_keys.items()}
+    
+    # Capture model reference to use in generator
+    conversation_model = current_app.conversation_model
+    
+    existing_messages = []
+    if conversation_id:
+        conv = conversation_model.get_by_id(conversation_id)
+        if conv:
+            existing_messages = [
+                {"role": m["role"], "content": m["content"]}
+                for m in conv.get('messages', [])
+            ]
+        # Add user message to conversation
+        conversation_model.add_message(conversation_id, "user", "user", message)
+
+    # Get current time
+    utc_now = datetime.now(timezone.utc)
+    cst = timezone(timedelta(hours=8))
+    current_time = utc_now.astimezone(cst).strftime("%Y年%m月%d日 %H:%M:%S")
+    system_message = {"role": "system", "content": f"当前日期时间(北京时间)：{current_time}"}
+
+    # Add user message
+    current_messages = [system_message] + existing_messages + [{"role": "user", "content": message}]
+
+    def generate():
+        ai_service = AIService(api_keys)
+        
+        # Process each model and stream responses
+        for model in models:
+            model_lower = model.lower()
+            
+            # Send start event for this model
+            yield f"event: model_start\ndata: {json.dumps({'model': model})}\n\n"
+            
+            full_content = ""
+            for chunk in ai_service.chat_stream(model_lower, current_messages):
+                full_content += chunk
+                yield f"event: content\ndata: {json.dumps({'model': model, 'content': chunk})}\n\n"
+            
+            # Send end event
+            yield f"event: model_end\ndata: {json.dumps({'model': model, 'full_content': full_content})}\n\n"
+            
+            # Save to conversation
+            if conversation_id:
+                conversation_model.add_message(conversation_id, model, "assistant", full_content)
+
+        yield f"event: done\ndata: {json.dumps({'message': message})}\n\n"
+
+    return Response(
+        generate(),
+        mimetype='text/event-stream',
+        headers={
+            'Cache-Control': 'no-cache',
+            'X-Accel-Buffering': 'no'
+        }
+    )
 
 
 # ============== Documents ==============
@@ -262,12 +339,12 @@ def get_models():
     return jsonify([
         {"id": "OpenAI", "name": "ChatGPT", "icon": "/static/icons/chatgpt.svg"},
         {"id": "Claude", "name": "Claude", "icon": "/static/icons/claude.svg"},
-        {"id": "Doubao", "name": "Doubao-Seed", "icon": "/static/icons/豆包.svg"},
+        {"id": "Doubao", "name": "Doubao-Seed", "icon": "/static/icons/doubao.svg"},
         {"id": "DeepSeek", "name": "DeepSeek", "icon": "/static/icons/deepseek.svg"},
         {"id": "Gemini", "name": "Gemini", "icon": "/static/icons/gemini.svg"},
-        {"id": "GLM", "name": "GLM", "icon": "/static/icons/智谱.svg"},
+        {"id": "GLM", "name": "GLM", "icon": "/static/icons/zhipu.svg"},
         {"id": "Kimi", "name": "Kimi", "icon": "/static/icons/kimi-copy.svg"},
         {"id": "MiniMax", "name": "MiniMax", "icon": "/static/icons/MiniMax.svg"},
         {"id": "Qwen", "name": "Qwen", "icon": "/static/icons/Tongyi-Qianwen.svg"},
-        {"id": "Yuanbao", "name": "Yuanbao", "icon": "/static/icons/腾讯元宝 yuanbao.svg"}
+        {"id": "Yuanbao", "name": "Yuanbao", "icon": "/static/icons/yuanbao.svg"}
     ])
