@@ -1048,7 +1048,6 @@
                 const conv = await response.json();
                 currentConversationId = convId;
                 renderConversationMessages(conv.messages || []);
-                toggleConversations();
             } catch (error) {
                 showToast('Failed to load conversation: ' + error.message, 'error');
             }
