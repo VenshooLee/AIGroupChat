@@ -475,6 +475,21 @@
             cursor: not-allowed;
         }
 
+        .stop-btn {
+            padding: 8px 20px;
+            background: #ef4444;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: background-color 0.2s ease;
+        }
+
+        .stop-btn:hover {
+            background: #dc2626;
+        }
+
         /* Editor Panel */
         .editor-panel {
             flex: 1;
@@ -1352,8 +1367,18 @@
             }
 
             const sendBtn = document.getElementById('sendBtn');
-            sendBtn.disabled = true;
-            sendBtn.innerHTML = '<img src="/static/icons/chat-thinking-line.svg" class="btn-icon-white">Thinking...';
+            let isStreaming = true;
+            let abortController = null;
+            
+            // Change to stop button
+            sendBtn.className = 'send-btn stop-btn';
+            sendBtn.innerHTML = '<img src="/static/icons/chat-off-line.svg" class="btn-icon-white">Stop';
+            sendBtn.onclick = () => {
+                isStreaming = false;
+                if (abortController) {
+                    abortController.abort();
+                }
+            };
 
             // Clear input immediately
             input.value = '';
@@ -1374,6 +1399,7 @@
                 }
 
                 // Use streaming API
+                abortController = new AbortController();
                 const response = await fetch('/api/chat/stream', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -1397,9 +1423,9 @@
                 let currentModel = null;
                 let buffer = '';
 
-                while (true) {
+                while (isStreaming) {
                     const { done, value } = await reader.read();
-                    if (done) break;
+                    if (done || !isStreaming) break;
 
                     buffer += decoder.decode(value, { stream: true });
                     
@@ -1456,10 +1482,15 @@
                     }
                 }
             } catch (error) {
-                showToast('Failed to send message: ' + error.message, 'error');
+                if (error.name !== 'AbortError') {
+                    showToast('Failed to send message: ' + error.message, 'error');
+                }
             } finally {
-                sendBtn.disabled = false;
+                // Reset to send button
+                sendBtn.className = 'send-btn';
                 sendBtn.innerHTML = '<img src="/static/icons/chat-send-line.svg" class="btn-icon-white">Send';
+                sendBtn.onclick = sendMessage;
+                isStreaming = false;
             }
         }
 

@@ -3,8 +3,13 @@ from io import BytesIO
 from docx import Document
 from bs4 import BeautifulSoup
 import json
+import threading
 
 api = Blueprint('api', __name__, url_prefix='/api')
+
+# Global stop flag for streaming
+_stop_flags = {}
+_stop_lock = threading.Lock()
 
 
 def register_routes(app):
@@ -192,12 +197,20 @@ def chat_stream():
 
         yield f"event: done\ndata: {json.dumps({'message': message})}\n\n"
 
+    def generate_with_cleanup():
+        try:
+            yield from generate()
+        except GeneratorExit:
+            # Client disconnected - cleanup will happen automatically
+            pass
+
     return Response(
-        generate(),
+        generate_with_cleanup(),
         mimetype='text/event-stream',
         headers={
             'Cache-Control': 'no-cache',
-            'X-Accel-Buffering': 'no'
+            'X-Accel-Buffering': 'no',
+            'Connection': 'close'
         }
     )
 
@@ -343,8 +356,8 @@ def get_models():
         {"id": "DeepSeek", "name": "DeepSeek", "icon": "/static/icons/deepseek.svg"},
         {"id": "Gemini", "name": "Gemini", "icon": "/static/icons/gemini.svg"},
         {"id": "GLM", "name": "GLM", "icon": "/static/icons/zhipu.svg"},
-        {"id": "Kimi", "name": "Kimi", "icon": "/static/icons/kimi-copy.svg"},
+        {"id": "Kimi", "name": "Kimi", "icon": "/static/icons/kimi.svg"},
         {"id": "MiniMax", "name": "MiniMax", "icon": "/static/icons/MiniMax.svg"},
-        {"id": "Qwen", "name": "Qwen", "icon": "/static/icons/Tongyi-Qianwen.svg"},
+        {"id": "Qwen", "name": "Qwen", "icon": "/static/icons/Qianwen.svg"},
         {"id": "Yuanbao", "name": "Yuanbao", "icon": "/static/icons/yuanbao.svg"}
     ])
