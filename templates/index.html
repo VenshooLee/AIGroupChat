@@ -5,8 +5,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI Group Chat & Document Editor</title>
     <link rel="icon" href="/static/icons/chat.png" type="image/png">
-    <link href="/static/quill/quill.snow.css" rel="stylesheet">
-    <script src="/static/quill/quill.min.js"></script>
+    <link href="/static/quill/quill2.snow.css" rel="stylesheet">
+    <link href="/static/quill/quill-better-table.css" rel="stylesheet">
+    <script src="/static/quill/quill2.min.js"></script>
+    <script src="/static/quill/quill-better-table2.min.js"></script>
+    <script>
+        // Register better-table module BEFORE Quill is initialized
+        if (typeof Quill !== 'undefined' && typeof quillBetterTable !== 'undefined') {
+            Quill.register({
+                'modules/better-table': quillBetterTable.default || quillBetterTable
+            }, true);
+        }
+    </script>
     <style>
         :root {
             --primary: #2563eb;
@@ -27,6 +37,18 @@
             margin: 0;
             padding: 0;
             box-sizing: border-box;
+        }
+
+        .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
         }
 
         body {
@@ -152,6 +174,38 @@
 
         .close-sidebar:hover {
             color: var(--text);
+        }
+        
+        .header-left {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+        
+        .clear-history-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 4px;
+            transition: background-color 0.2s;
+            margin-left: 8px;
+        }
+        
+        .clear-history-btn img {
+            width: 16px;
+            height: 16px;
+            color: #ef4444;
+            filter: invert(30%) sepia(90%) saturate(2000%) hue-rotate(340deg);
+        }
+        
+        .clear-history-btn:hover {
+            background-color: rgba(239, 68, 68, 0.1);
+        }
+        
+        .clear-history-btn:active {
+            background-color: rgba(239, 68, 68, 0.2);
+            transform: scale(0.95);
         }
 
         .conversations-list {
@@ -372,6 +426,43 @@
             white-space: pre-wrap;
             word-break: break-word;
         }
+        
+        .table-wrapper {
+            overflow-x: auto;
+            margin: 12px 0;
+        }
+        
+        .markdown-table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 8px 0;
+            font-size: 14px;
+        }
+        
+        .markdown-table th,
+        .markdown-table td,
+        .ql-editor .markdown-table th,
+        .ql-editor .markdown-table td {
+            border: 1px solid #ddd !important;
+            padding: 8px 12px;
+            text-align: left;
+        }
+        
+        .markdown-table th,
+        .ql-editor .markdown-table th {
+            background-color: #f5f5f5 !important;
+            font-weight: 600;
+        }
+        
+        .markdown-table tr:nth-child(even),
+        .ql-editor .markdown-table tr:nth-child(even) {
+            background-color: #fafafa;
+        }
+        
+        .markdown-table tr:hover,
+        .ql-editor .markdown-table tr:hover {
+            background-color: #f0f0f0;
+        }
 
         .thinking-section {
             background: #f5f5f5;
@@ -488,6 +579,19 @@
 
         .stop-btn:hover {
             background: #dc2626;
+        }
+
+        .chat-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .discuss-btn {
+            background: #10a37f;
+        }
+
+        .discuss-btn:hover {
+            background: #0d8a6b;
         }
 
         /* Editor Panel */
@@ -911,18 +1015,23 @@
     <header class="header">
         <h1>AI Group Chat</h1>
         <div class="header-actions">
-            <button class="btn btn-secondary" onclick="toggleConversations()" title="History"><img src="/static/icons/chat-history-line.svg" class="header-icon">History</button>
-            <button class="btn btn-secondary" onclick="newConversation()" title="New Chat"><img src="/static/icons/chat-new-line.svg" class="header-icon">New Chat</button>
+            <button class="btn btn-secondary" onclick="toggleConversations()" title="History"><img src="/static/icons/chat-history-line.svg" class="header-icon" alt="History">History</button>
+            <button class="btn btn-secondary" onclick="newConversation()" title="New Chat"><img src="/static/icons/chat-new-line.svg" class="header-icon" alt="New Chat">New Chat</button>
         </div>
-        <button class="btn btn-secondary settings-btn" onclick="openSettings()"><img src="/static/icons/chat-settings-line.svg" class="header-icon">Settings</button>
+        <button class="btn btn-secondary settings-btn" onclick="openSettings()" title="Settings"><img src="/static/icons/chat-settings-line.svg" class="header-icon" alt="Settings">Settings</button>
     </header>
 
     <main class="main">
         <!-- Conversations Sidebar -->
         <aside class="conversations-sidebar" id="conversationsSidebar">
             <div class="conversations-header">
-                <h3>History</h3>
-                <button class="close-sidebar" onclick="toggleConversations()">×</button>
+                <div class="header-left">
+                    <h3>History</h3>
+                    <button class="clear-history-btn" onclick="clearAllConversations()" title="Clear all history">
+                        <img src="/static/icons/clear.svg" alt="Clear">
+                    </button>
+                </div>
+                <button class="close-sidebar" onclick="toggleConversations()" title="Close sidebar">×</button>
             </div>
             <div class="conversations-list" id="conversationsList">
                 <!-- Conversations loaded dynamically -->
@@ -944,10 +1053,13 @@
                 </div>
             </div>
             <div class="chat-input-area">
-                <textarea class="chat-input" id="chatInput" placeholder="Type your message here..." rows="3"></textarea>
+                <textarea class="chat-input" id="chatInput" placeholder="Type your message here..." rows="3" aria-label="Type your message"></textarea>
                 <div class="chat-input-footer">
                     <span class="chat-hint">Enter to send, Shift+Enter for new line</span>
-                    <button class="send-btn" id="sendBtn" onclick="sendMessage()"><img src="/static/icons/chat-send-line.svg" class="btn-icon-white">Send</button>
+                    <div class="chat-actions">
+                        <button class="send-btn discuss-btn" id="discussBtn" title="Start group discussion"><img src="/static/icons/discuss-line.svg" class="btn-icon-white" alt="Discuss">Discuss</button>
+                        <button class="send-btn" id="sendBtn" onclick="sendMessage()" title="Send message"><img src="/static/icons/chat-send-line.svg" class="btn-icon-white" alt="Send">Chat</button>
+                    </div>
                 </div>
             </div>
         </section>
@@ -956,7 +1068,7 @@
 
         <section class="editor-panel">
             <div class="editor-header">
-                <input type="text" class="doc-title" id="docTitle" placeholder="Document Title" value="Untitled Document">
+                <input type="text" class="doc-title" id="docTitle" placeholder="Document Title" value="Untitled Document" aria-label="Document Title">
                 <span class="doc-status" id="docStatus"></span>
             </div>
             <div class="editor-container">
@@ -965,9 +1077,9 @@
             <div class="editor-footer">
                 <span class="copyright">Copyright © 2026 <a href="mailto:venshoo@163.com" style="color: var(--primary); text-decoration: none;">Venshoo</a>. All Rights Reserved. Version: 0.0.3</span>
                 <div class="editor-actions">
-                    <button class="btn btn-secondary" onclick="newDocument()">New</button>
-                    <button class="btn btn-secondary" onclick="saveDocument()">Save</button>
-                    <button class="btn btn-primary" onclick="exportDocument()">Export .docx</button>
+                    <button class="btn btn-secondary" onclick="newDocument()" title="New document">New</button>
+                    <button class="btn btn-secondary" onclick="saveDocument()" title="Save document">Save</button>
+                    <button class="btn btn-primary" onclick="exportDocument()" title="Export as .docx">Export .docx</button>
                 </div>
             </div>
         </section>
@@ -987,7 +1099,7 @@
         <div class="modal">
             <div class="modal-header">
                 <h2>Settings</h2>
-                <button class="modal-close" onclick="closeSettings()">&times;</button>
+                <button class="modal-close" onclick="closeSettings()" title="Close">&times;</button>
             </div>
             <div class="modal-body">
                 <h3 style="margin-bottom: 16px; color: var(--text-muted);">API Keys</h3>
@@ -996,8 +1108,8 @@
                 </div>
             </div>
             <div class="modal-footer">
-                <button class="btn btn-secondary" onclick="closeSettings()">Cancel</button>
-                <button class="btn btn-primary" onclick="saveSettings()">Save</button>
+                <button class="btn btn-secondary" onclick="closeSettings()" title="Cancel">Cancel</button>
+                <button class="btn btn-primary" onclick="saveSettings()" title="Save settings">Save</button>
             </div>
         </div>
     </div>
@@ -1006,6 +1118,22 @@
     <div class="toast" id="toast"></div>
 
     <script>
+        // Attach event listener to discuss button
+        document.addEventListener('DOMContentLoaded', function() {
+            setTimeout(function() {
+                var btn = document.getElementById('discussBtn');
+                if (btn) {
+                    btn.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        if (typeof startDiscuss === 'function') {
+                            startDiscuss();
+                        }
+                    });
+                }
+            }, 100);
+        });
+    </script>
+    <script>
         // Global state
         let currentConversationId = null;
         let currentDocumentId = null;
@@ -1013,6 +1141,17 @@
         let availableModels = [];
         let quill = null;
         let autoSaveTimer = null;
+        
+        // Discuss mode state
+        let isDiscussMode = false;
+        let discussAbortController = null;
+        let discussModels = [];
+        let discussMessage = '';
+        let discussCurrentRound = 0;
+        let maxDiscussRounds = 20; // Maximum rounds as safety limit
+        let lastDiscussionSummary = '';
+        let currentRespondingModel = ''; // Track current responding model
+        let conclusionReachedModels = []; // Track models that have reached conclusion
 
         // Initialize
         document.addEventListener('DOMContentLoaded', async () => {
@@ -1042,6 +1181,24 @@
                 console.error('Failed to load conversations:', error);
             }
         }
+        
+        async function clearAllConversations() {
+            if (!confirm('Are you sure you want to delete all conversations? This action cannot be undone.')) {
+                return;
+            }
+            try {
+                const response = await fetch('/api/conversations/clear', {
+                    method: 'DELETE'
+                });
+                if (response.ok) {
+                    showToast('All conversations cleared', 'success');
+                    loadConversations();
+                }
+            } catch (error) {
+                console.error('Failed to clear conversations:', error);
+                showToast('Failed to clear conversations', 'error');
+            }
+        }
 
         async function loadDocuments() {
             try {
@@ -1064,7 +1221,7 @@
                     <div class="conversation-content" onclick="loadConversation('${conv._id}')">
                         ${conv.title || 'Untitled'}
                     </div>
-                    <button class="conversation-delete" onclick="deleteConversation('${conv._id}', event)">×</button>
+                    <button class="conversation-delete" onclick="deleteConversation('${conv._id}', event)" title="Delete conversation">×</button>
                 </div>
             `).join('');
         }
@@ -1129,20 +1286,246 @@
             `;
         }
 
+        // Fix Quill toolbar accessibility
+        function fixQuillAccessibility() {
+            const toolbar = document.querySelector('.ql-toolbar');
+            if (!toolbar) return;
+            
+            const buttonTitles = {
+                'bold': 'Bold',
+                'italic': 'Italic',
+                'underline': 'Underline',
+                'list': 'List'
+            };
+            
+            // Fix all buttons
+            toolbar.querySelectorAll('button').forEach(btn => {
+                if (!btn.title) {
+                    for (const [cls, title] of Object.entries(buttonTitles)) {
+                        if (btn.classList.contains('ql-' + cls)) {
+                            btn.title = title;
+                            break;
+                        }
+                    }
+                }
+            });
+            
+            // Fix all inputs
+            toolbar.querySelectorAll('input').forEach(input => {
+                if (!input.title && input.type === 'text') {
+                    input.title = 'Enter URL';
+                }
+            });
+        }
+        
+        // Also fix periodically in case Quill recreates elements
+        setInterval(fixQuillAccessibility, 1000);
+
         // Quill Editor
         function initEditor() {
+            // Get better-table keyboard bindings if available
+            let keyboardBindings = {};
+            try {
+                if (Quill.import('modules/better-table')) {
+                    keyboardBindings = Quill.import('modules/better-table').keyboardBindings;
+                }
+            } catch (e) {
+                console.log('better-table module not loaded yet');
+            }
+            
             quill = new Quill('#editor', {
                 theme: 'snow',
                 placeholder: 'Start writing your document...',
                 modules: {
-                    toolbar: [
-                        ['bold', 'italic', 'underline'],
-                        [{ 'header': [1, 2, 3, false] }],
-                        [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-                        [{ 'align': [] }]
-                    ]
+                    toolbar: {
+                        container: [
+                            ['bold', 'italic', 'underline'],
+                            [{ 'header': [1, 2, 3, false] }],
+                            [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                            [{ 'align': [] }],
+                            ['table']
+                        ],
+                        handlers: {
+                            'table': function() {
+                                let tableModule = quill.getModule('better-table');
+                                if (tableModule && tableModule.table) {
+                                    return;
+                                }
+                                const range = quill.getSelection();
+                                if (tableModule) {
+                                    tableModule.insertTable(3, 3);
+                                }
+                            }
+                        }
+                    },
+                    'better-table': {
+                        language: 'en_US'
+                    },
+                    keyboard: {
+                        bindings: keyboardBindings
+                    }
                 }
             });
+            
+            // Add table operation buttons after Quill initialization
+            setTimeout(function() {
+                const toolbar = document.querySelector('.ql-toolbar');
+                if (!toolbar) return;
+                
+                // Create row operation buttons
+                const rowOps = document.createElement('span');
+                rowOps.className = 'ql-formats';
+                rowOps.innerHTML = `
+                    <button type="button" class="ql-tableOp" data-op="insertRowBelow" title="增加行">
+                        <img src="/static/icons/增加行.svg" style="width:16px;height:16px;" alt="增加行">
+                    </button>
+                    <button type="button" class="ql-tableOp" data-op="deleteRow" title="删除行">
+                        <img src="/static/icons/删除行.svg" style="width:16px;height:16px;" alt="删除行">
+                    </button>
+                `;
+                
+                // Create column operation buttons
+                const colOps = document.createElement('span');
+                colOps.className = 'ql-formats';
+                colOps.innerHTML = `
+                    <button type="button" class="ql-tableOp" data-op="insertColumnRight" title="增加列">
+                        <img src="/static/icons/增加列.svg" style="width:16px;height:16px;" alt="增加列">
+                    </button>
+                    <button type="button" class="ql-tableOp" data-op="deleteColumn" title="删除列">
+                        <img src="/static/icons/删除列.svg" style="width:16px;height:16px;" alt="删除列">
+                    </button>
+                `;
+                
+                // Style the buttons
+                const btnStyle = document.createElement('style');
+                btnStyle.textContent = `
+                    .ql-tableOp {
+                        padding: 4px 6px !important;
+                        cursor: pointer;
+                        border: 1px solid transparent !important;
+                        background: transparent !important;
+                        margin: 0 2px !important;
+                        display: inline-flex !important;
+                        align-items: center !important;
+                        justify-content: center !important;
+                    }
+                    .ql-tableOp:hover {
+                        background: #e5e7eb !important;
+                        border-radius: 4px;
+                    }
+                    .ql-tableOp img {
+                        display: block;
+                    }
+                `;
+                document.head.appendChild(btnStyle);
+                
+                // Add buttons to toolbar
+                toolbar.appendChild(rowOps);
+                toolbar.appendChild(colOps);
+                
+                // Click handlers for row/col buttons
+                toolbar.querySelectorAll('.ql-tableOp').forEach(function(btn) {
+                    btn.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        const op = btn.getAttribute('data-op');
+                        const tableModule = quill.getModule('better-table');
+                        if (!tableModule || !tableModule.table) {
+                            alert('请先点击表格内的单元格');
+                            return;
+                        }
+                        
+                        // Get table blot (Quill object) from DOM element
+                        const tableBlot = Quill.find(tableModule.table);
+                        const tableSelection = tableModule.tableSelection;
+                        const scrollContainer = quill.root.parentNode;
+                        
+                        if (!tableBlot) {
+                            alert('无法获取表格对象');
+                            return;
+                        }
+                        
+                        if (op === 'insertRowBelow') {
+                            // Insert row below
+                            const rows = tableBlot.insertRow(tableSelection.boundary, true, scrollContainer);
+                            quill.update(Quill.sources.USER);
+                            if (rows && rows[0]) {
+                                quill.setSelection(quill.getIndex(rows[0]), 0, Quill.sources.SILENT);
+                            }
+                        } else if (op === 'deleteRow') {
+                            // Delete row
+                            tableBlot.deleteRow(tableSelection.boundary, scrollContainer);
+                            quill.update(Quill.sources.USER);
+                            tableSelection.clearSelection();
+                        } else if (op === 'insertColumnRight') {
+                            // Insert column to the right
+                            const colIndex = tableModule.columnTool ? 
+                                tableModule.columnTool.colToolCells().findIndex(cell => {
+                                    const rect = cell.getBoundingClientRect();
+                                    const boundary = tableSelection.boundary;
+                                    return rect.x <= boundary.x + boundary.width/2;
+                                }) : 0;
+                            // insertColumn(boundary, index, insertRight, scrollContainer)
+                            const cols = tableBlot.insertColumn(tableSelection.boundary, Math.max(0, colIndex), true, scrollContainer);
+                            if (tableModule.tableColumnTool) {
+                                tableModule.tableColumnTool.updateToolCells();
+                            }
+                            quill.update(Quill.sources.USER);
+                            if (cols && cols[0]) {
+                                quill.setSelection(quill.getIndex(cols[0]), 0, Quill.sources.SILENT);
+                            }
+                        } else if (op === 'deleteColumn') {
+                            // Delete column - find column index from selected cells
+                            const selectedTds = tableSelection.selectedTds;
+                            if (!selectedTds || selectedTds.length === 0) {
+                                alert('请先选择要删除的列（拖动选择单元格）');
+                                return;
+                            }
+                            
+                            // Get column index from the first selected cell
+                            const firstCell = selectedTds[0];
+                            const cellRect = firstCell.domNode.getBoundingClientRect();
+                            
+                            // Find column index using column tool cells
+                            let colIndex = -1;
+                            if (tableModule.columnTool) {
+                                const columnToolCells = tableModule.columnTool.colToolCells();
+                                for (let i = 0; i < columnToolCells.length; i++) {
+                                    const cell = columnToolCells[i];
+                                    const rect = cell.getBoundingClientRect();
+                                    // Match the column based on position
+                                    if (Math.abs(rect.x - cellRect.x) < 5) {
+                                        colIndex = i;
+                                        break;
+                                    }
+                                }
+                            }
+                            
+                            // Fallback: calculate from cell position
+                            if (colIndex < 0 && firstCell.domNode) {
+                                // Try to get cell index from td attributes
+                                const cellIndex = firstCell.domNode.getAttribute('data-cell');
+                                if (cellIndex) {
+                                    colIndex = parseInt(cellIndex, 10) - 1;
+                                }
+                            }
+                            
+                            if (colIndex >= 0) {
+                                tableBlot.deleteColumns(tableSelection.boundary, [colIndex], scrollContainer);
+                                if (tableModule.tableColumnTool) {
+                                    tableModule.tableColumnTool.updateToolCells();
+                                }
+                                quill.update(Quill.sources.USER);
+                                tableSelection.clearSelection();
+                            } else {
+                                alert('无法确定要删除的列');
+                            }
+                        }
+                    });
+                });
+            }, 100);
+            
+            // Fix Quill toolbar accessibility
+            setTimeout(fixQuillAccessibility, 100);
 
             // Auto-save on change
             quill.on('text-change', () => {
@@ -1238,8 +1621,8 @@
                 const isActive = selectedModels.includes(model.id);
                 return `
                 <div class="model-checkbox ${isActive ? 'active' : ''}" data-model="${model.id}">
-                    <input type="checkbox" value="${model.id}" ${isActive ? 'checked' : ''}>
-                    <span>${renderIcon(model.icon)} ${model.name}</span>
+                    <input type="checkbox" id="model_${model.id}" value="${model.id}" ${isActive ? 'checked' : ''} title="${model.name}">
+                    <label for="model_${model.id}">${renderIcon(model.icon)} ${model.name}</label>
                 </div>
             `}).join('');
 
@@ -1328,7 +1711,7 @@
 
             message.innerHTML = `
                 ${header}
-                <div class="message-content">${escapeHtml(cleanMarkdown(content))}</div>
+                <div class="message-content">${cleanMarkdown(content)}</div>
                 ${actions}
             `;
             container.appendChild(message);
@@ -1342,17 +1725,86 @@
         }
 
         function cleanMarkdown(text) {
-            // 移除 Markdown 格式符号
-            return text
+            // 使用占位符保护已转换的 HTML 表格
+            const tablePlaceholders = [];
+            
+            // 先转换 Markdown 表格为 HTML
+            text = convertMarkdownTables(text);
+            
+            // 提取并保护 HTML 表格
+            text = text.replace(/<div class="table-wrapper">[\s\S]*?<\/div>/g, (match) => {
+                const placeholder = `__TABLE_PLACEHOLDER_${tablePlaceholders.length}__`;
+                tablePlaceholders.push(match);
+                return placeholder;
+            });
+            
+            // 在转义之前移除 Markdown 格式符号
+            text = text
                 .replace(/^#{1,6}\s*/gm, '') // 移除标题符号
-                .replace(/\*\*([^*]+)\*\*/g, '$1') // 移除粗体
-                .replace(/\*([^*]+)\*/g, '$1') // 移除斜体
-                .replace(/__([^_]+)__/g, '$1') // 移除粗体
-                .replace(/_([^_]+)_/g, '$1') // 移除斜体
-                .replace(/`([^`]+)`/g, '$1') // 移除行内代码
-                .replace(/^>\s*/gm, '') // 移除引用
+                .replace(/^>\s*/gm, '') // 移除引用符号
                 .replace(/^[-*+]\s+/gm, '') // 移除列表符号
-                .replace(/^\d+\.\s+/gm, ''); // 移除有序列表
+                .replace(/^\d+\.\s+/gm, ''); // 移除有序列表符号
+            
+            // 转义剩余的 HTML
+            text = escapeHtml(text);
+            
+            // 还原表格占位符
+            tablePlaceholders.forEach((table, index) => {
+                text = text.replace(`__TABLE_PLACEHOLDER_${index}__`, table);
+            });
+            
+            // 将换行符转换为 <br>
+            text = text.replace(/\n/g, '<br>');
+            
+            // 保留粗体、斜体、代码格式
+            return text
+                .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>') // 保留粗体
+                .replace(/\*([^*]+)\*/g, '<em>$1</em>') // 保留斜体
+                .replace(/__([^_]+)__/g, '<strong>$1</strong>') // 保留粗体
+                .replace(/_([^_]+)_/g, '<em>$1</em>') // 保留斜体
+                .replace(/`([^`]+)`/g, '<code>$1</code>'); // 保留行内代码
+        }
+        
+        function convertMarkdownTables(text) {
+            // 匹配 Markdown 表格（需要先反转义 | 符号）
+            const tableRegex = /\|(.+)\|\n\|[-:\s|]+\|\n((?:\|.+\|\n?)+)/g;
+            
+            return text.replace(tableRegex, (match, headerRow, bodyRows) => {
+                // 反转义 | 符号
+                headerRow = headerRow.replace(/&vert;/g, '|');
+                bodyRows = bodyRows.replace(/&vert;/g, '|');
+                
+                // 解析表头
+                const headers = headerRow.split('|').filter(cell => cell.trim()).map(cell => cell.trim());
+                
+                // 解析表格内容
+                const rows = bodyRows.trim().split('\n').map(row => 
+                    row.split('|').filter(cell => cell.trim()).map(cell => cell.trim())
+                );
+                
+                // 生成 HTML 表格
+                let html = '<div class="table-wrapper"><table class="markdown-table">';
+                
+                // 表头
+                html += '<thead><tr>';
+                headers.forEach(header => {
+                    html += `<th>${header}</th>`;
+                });
+                html += '</tr></thead>';
+                
+                // 表格内容
+                html += '<tbody>';
+                rows.forEach(row => {
+                    html += '<tr>';
+                    row.forEach(cell => {
+                        html += `<td>${cell}</td>`;
+                    });
+                    html += '</tr>';
+                });
+                html += '</tbody></table></div>';
+                
+                return html;
+            });
         }
 
         // Chat functions
@@ -1372,7 +1824,7 @@
             
             // Change to stop button
             sendBtn.className = 'send-btn stop-btn';
-            sendBtn.innerHTML = '<img src="/static/icons/chat-off-line.svg" class="btn-icon-white">Stop';
+            sendBtn.innerHTML = '<img src="/static/icons/chat-off-line.svg" class="btn-icon-white" alt="Stop">Stop';
             sendBtn.onclick = () => {
                 isStreaming = false;
                 if (abortController) {
@@ -1458,7 +1910,8 @@
                                         const content = modelStates[currentModel].content;
                                         const modelKey = currentModel;
                                         if (contentDiv) {
-                                            contentDiv.textContent = content;
+                                            // Use innerHTML for streaming to render tables
+                                            contentDiv.innerHTML = cleanMarkdown(content);
                                             // Force reflow to ensure rendering
                                             void contentDiv.offsetHeight;
                                         }
@@ -1470,7 +1923,7 @@
                                     const cleanContent = cleanMarkdown(json.full_content);
                                     modelStates[currentModel].content = cleanContent;
                                     if (modelStates[currentModel].element) {
-                                        modelStates[currentModel].element.querySelector('.message-content').textContent = cleanContent;
+                                        modelStates[currentModel].element.querySelector('.message-content').innerHTML = cleanContent;
                                         modelStates[currentModel].done = true;
                                     }
                                     currentModel = null; // Reset after processing full_content
@@ -1488,24 +1941,268 @@
             } finally {
                 // Reset to send button
                 sendBtn.className = 'send-btn';
-                sendBtn.innerHTML = '<img src="/static/icons/chat-send-line.svg" class="btn-icon-white">Send';
+                sendBtn.innerHTML = '<img src="/static/icons/chat-send-line.svg" class="btn-icon-white" alt="Send">Send';
                 sendBtn.onclick = sendMessage;
                 isStreaming = false;
             }
         }
 
-        function cleanMarkdown(content) {
-            return content
-                .replace(/^#{1,6}\s+/gm, '')
-                .replace(/\*\*([^*]+)\*\*/g, '$1')
-                .replace(/\*([^*]+)\*/g, '$1')
-                .replace(/__([^_]+)__/g, '$1')
-                .replace(/_([^_]+)_/g, '$1')
-                .replace(/`([^`]+)`/g, '$1')
-                .replace(/```[\s\S]*?```/g, (match) => match.replace(/```\w*\n?/g, '').trim())
-                .replace(/^\s*[-*+]\s+/gm, '')
-                .replace(/^\s*\d+\.\s+/gm, '')
-                .replace(/^\s*>\s+/gm, '');
+
+
+        // Discuss mode functions
+        async function startDiscuss() {
+            const message = document.getElementById('chatInput').value.trim();
+            const input = document.getElementById('chatInput');
+            
+            if (!message) {
+                showToast('Please enter a topic to discuss', 'error');
+                return;
+            }
+            
+            if (selectedModels.length < 2) {
+                showToast('Please select at least 2 models for discussion', 'error');
+                return;
+            }
+            
+            const discussBtn = document.getElementById('discussBtn');
+            const sendBtn = document.getElementById('sendBtn');
+            
+            // Start discuss mode
+            isDiscussMode = true;
+            discussMessage = message;
+            discussModels = [...selectedModels];
+            discussCurrentRound = 0;
+            discussAbortController = new AbortController();
+            conclusionReachedModels = []; // Reset conclusion tracking
+            
+            // Update UI
+            discussBtn.className = 'send-btn stop-btn';
+            discussBtn.innerHTML = '<img src="/static/icons/chat-off-line.svg" class="btn-icon-white" alt="Stop">Stop';
+            discussBtn.onclick = stopDiscuss;
+            sendBtn.disabled = true;
+            input.value = '';
+            input.disabled = true;
+            
+            // Add user message
+            addMessageToChat('user', message);
+            
+            try {
+                // Create conversation if needed
+                if (!currentConversationId) {
+                    const convResponse = await fetch('/api/conversations', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ title: message.substring(0, 50) })
+                    });
+                    const conv = await convResponse.json();
+                    currentConversationId = conv.id;
+                }
+                
+                // Start multi-turn discussion
+                await runDiscussion();
+                
+            } catch (error) {
+                if (error.name !== 'AbortError') {
+                    showToast('Discussion error: ' + error.message, 'error');
+                }
+            }
+        }
+        
+        async function runDiscussion() {
+            const discussBtn = document.getElementById('discussBtn');
+            
+            // Build discussion context with termination hints
+            let context = `You are participating in a group discussion. The topic is: "${discussMessage}"\n\n`;
+            context += `You are one of ${discussModels.length} models discussing this topic.\n`;
+            context += `Please provide your response concisely and contribute to the discussion.\n`;
+            context += `After your response, if you believe the discussion has reached a satisfactory conclusion, please end your message with "[CONCLUSION]" followed by a brief summary.\n`;
+            context += `If more discussion is needed, end with "[CONTINUE]".\n\n`;
+            
+            // Add previous discussion context
+            const messages = document.querySelectorAll('#chatMessages .message');
+            messages.forEach(msg => {
+                const author = msg.querySelector('.message-author, .message-model');
+                const content = msg.querySelector('.message-content');
+                if (author && content) {
+                    context += `${author.textContent}: ${content.textContent}\n`;
+                }
+            });
+            
+            // Get current model for this round
+            const modelIndex = discussCurrentRound % discussModels.length;
+            const currentModel = discussModels[modelIndex];
+            currentRespondingModel = currentModel; // Track for conclusion handling
+            
+            // Add round indicator
+            const roundDiv = document.createElement('div');
+            roundDiv.className = 'discuss-round';
+            roundDiv.innerHTML = `<span style="color: #666; font-size: 12px;">Round ${discussCurrentRound + 1} - ${currentModel} responding...</span>`;
+            document.getElementById('chatMessages').appendChild(roundDiv);
+            
+            // Update button text
+            discussBtn.innerHTML = `<img src="/static/icons/chat-off-line.svg" class="btn-icon-white" alt="Stop">Stop (${currentModel})`;
+            
+            // Stream response from current model
+            const response = await fetch('/api/chat/stream', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    message: context,
+                    models: [currentModel],
+                    conversation_id: currentConversationId
+                })
+            });
+            
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+            let fullContent = '';
+            let messageElement = null;
+            
+            while (isDiscussMode) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop() || '';
+                
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        const data = line.slice(6).trim();
+                        if (!data) continue;
+                        
+                        try {
+                            const json = JSON.parse(data);
+                            
+                            if (json.model && !messageElement) {
+                                messageElement = addStreamingMessage('assistant', '', json.model);
+                            }
+                            
+                            if (json.content !== undefined && messageElement) {
+                                fullContent += json.content;
+                                const contentDiv = messageElement.querySelector('.message-content');
+                                if (contentDiv) {
+                                    contentDiv.innerHTML = cleanMarkdown(fullContent);
+                                    messageElement.scrollIntoView({ behavior: 'smooth', block: 'end' });
+                                }
+                            }
+                            
+                            if (json.full_content !== undefined) {
+                                // Response complete
+                                break;
+                            }
+                        } catch (e) {
+                            // Skip malformed JSON
+                        }
+                    }
+                }
+            }
+            
+            // Remove round indicator
+            roundDiv.remove();
+            
+            // Check for conclusion or continue marker
+            const hasConclusion = fullContent.includes('[CONCLUSION]');
+            const hasContinue = fullContent.includes('[CONTINUE]');
+            
+            // Update last summary if present
+            if (hasConclusion) {
+                const summaryMatch = fullContent.match(/\[CONCLUSION\]\s*(.*)/s);
+                if (summaryMatch) {
+                    lastDiscussionSummary = summaryMatch[1].trim();
+                }
+                // Track that current model has reached conclusion
+                if (currentRespondingModel && !conclusionReachedModels.includes(currentRespondingModel)) {
+                    conclusionReachedModels.push(currentRespondingModel);
+                }
+            }
+            
+            // Decision logic for next round
+            if (!isDiscussMode) return;
+            
+            // Calculate minimum rounds: each model speaks at least twice
+            const minRounds = discussModels.length * 2;
+            
+            // If model indicates CONTINUE, always continue discussion (if not at max rounds)
+            if (hasContinue) {
+                console.log('CONTINUE detected from:', currentRespondingModel);
+                if (discussCurrentRound >= maxDiscussRounds - 1) {
+                    stopDiscuss();
+                    return;
+                }
+                discussCurrentRound++;
+                await runDiscussion();
+                return;
+            }
+            
+            // If model indicates conclusion AND we've met minimum rounds
+            if (hasConclusion && discussCurrentRound + 1 >= minRounds) {
+                console.log('CONCLUSION detected from:', currentRespondingModel);
+                console.log('Models that have concluded:', conclusionReachedModels);
+                
+                // Check if all selected models have reached conclusion
+                const allConcluded = discussModels.every(m => conclusionReachedModels.includes(m));
+                
+                if (allConcluded) {
+                    stopDiscuss();
+                    return;
+                }
+                
+                // If current model concluded but others haven't, continue to next model
+                // but skip models that have already concluded
+                const nextModelIndex = discussModels.indexOf(currentRespondingModel) + 1;
+                
+                // Check if all remaining models have also concluded
+                let allRemainingConcluded = true;
+                for (let i = nextModelIndex; i < discussModels.length; i++) {
+                    if (!conclusionReachedModels.includes(discussModels[i])) {
+                        allRemainingConcluded = false;
+                        break;
+                    }
+                }
+                
+                if (allRemainingConcluded) {
+                    stopDiscuss();
+                    return;
+                }
+            }
+            
+            // Check if we've reached max rounds
+            if (discussCurrentRound >= maxDiscussRounds - 1) {
+                stopDiscuss();
+                return;
+            }
+            
+            // Continue to next round
+            discussCurrentRound++;
+            await runDiscussion();
+        }
+        
+        function stopDiscuss() {
+            const discussBtn = document.getElementById('discussBtn');
+            const sendBtn = document.getElementById('sendBtn');
+            const input = document.getElementById('chatInput');
+            
+            isDiscussMode = false;
+            discussMessage = '';
+            discussModels = [];
+            conclusionReachedModels = [];
+            discussCurrentRound = 0;
+            
+            if (discussAbortController) {
+                discussAbortController.abort();
+            }
+            
+            // Reset UI
+            discussBtn.className = 'send-btn discuss-btn';
+            discussBtn.innerHTML = '<img src="/static/icons/discuss-line.svg" class="btn-icon-white" alt="Discuss">Discuss';
+            discussBtn.onclick = startDiscuss;
+            sendBtn.disabled = false;
+            input.disabled = false;
+            
+            // Clear input
+            input.value = '';
         }
 
         function addStreamingMessage(role, content, model = null) {
@@ -1525,7 +2222,7 @@
                             <button class="message-btn" onclick="insertToEditor(this)" title="Insert to Editor">Insert</button>
                         </div>
                     </div>
-                    <div class="message-content">${content}</div>
+                    <div class="message-content">${cleanMarkdown(content)}</div>
                 </div>
             `;
             container.appendChild(messageDiv);
@@ -1539,19 +2236,47 @@
             showToast('Copied to clipboard!', 'success');
         }
 
+        let isInsertingToEditor = false;
+        
         function insertToEditor(btn) {
-            const content = btn.closest('.message').querySelector('.message-content').textContent;
-            const range = quill.getSelection();
-            let insertIndex;
-            if (range) {
-                insertIndex = range.index;
-            } else {
-                insertIndex = 0;
+            if (isInsertingToEditor) return;
+            isInsertingToEditor = true;
+            
+            const messageContent = btn.closest('.message').querySelector('.message-content');
+            const htmlContent = messageContent.innerHTML;
+            
+            clearTimeout(autoSaveTimer);
+            
+            try {
+                const currentLength = quill.getLength();
+                
+                // 使用 clipboard.convert 将 HTML 转换为带格式的 delta
+                const delta = quill.clipboard.convert({ html: htmlContent });
+                
+                // 构建组合 delta：保留到 currentLength - 1（末尾），然后插入换行和内容
+                const combinedOps = [
+                    { retain: Math.max(0, currentLength - 1) },
+                    { insert: '\n' },
+                    ...delta.ops
+                ];
+                
+                quill.updateContents({ ops: combinedOps }, Quill.sources.USER);
+                
+                // 获取最终长度并移动光标到末尾
+                const finalLength = quill.getLength();
+                quill.setSelection({ index: finalLength, length: 0 }, Quill.sources.SILENT);
+                
+            } catch (e) {
+                console.error('Insert error:', e);
             }
-            quill.insertText(insertIndex, '\n' + content + '\n');
-            // 将光标移动到插入文字的末尾
-            const newIndex = insertIndex + 1 + content.length + 1;
-            quill.setSelection(newIndex, 0);
+            
+            setTimeout(() => {
+                if (currentDocumentId) {
+                    saveDocument(true);
+                }
+                isInsertingToEditor = false;
+            }, 500);
+            
             showToast('Inserted into editor!', 'success');
         }
 
@@ -1585,12 +2310,11 @@
                 currentDocumentId = doc._id;
                 document.getElementById('docTitle').value = doc.title;
 
-                // Set editor content - Quill clipboard.convert is synchronous
+                // Set editor content - use direct innerHTML for better compatibility
                 if (doc.content) {
-                    const root = quill.clipboard.convert(doc.content);
-                    quill.setContents(root);
+                    quill.root.innerHTML = doc.content;
                 } else {
-                    quill.setContents([]);
+                    quill.root.innerHTML = '';
                 }
 
                 await loadDocuments();
@@ -1621,13 +2345,26 @@
             updateDocStatus('Saving...');
             const title = document.getElementById('docTitle').value;
             const content = quill.root.innerHTML;
+            
+            console.log('=== saveDocument ===');
+            console.log('currentDocumentId:', currentDocumentId);
+            console.log('title:', title);
+            console.log('content length:', content.length);
+            console.log('content preview:', content.substring(0, 200));
 
             try {
-                await fetch(`/api/documents/${currentDocumentId}`, {
+                const response = await fetch(`/api/documents/${currentDocumentId}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ title, content })
                 });
+                console.log('save response:', response.status, response.ok);
+                if (!response.ok) {
+                    const err = await response.text();
+                    console.log('save error:', err);
+                    showToast('Failed to save: ' + err, 'error');
+                    return;
+                }
                 await loadDocuments();
                 updateDocStatus('Saved');
                 if (!silent) showToast('Document saved!', 'success');
@@ -1652,7 +2389,7 @@
         // Helper function to render model icon
         function renderIcon(icon) {
             if (icon && icon.startsWith('/static/')) {
-                return `<img src="${icon}" class="model-icon" alt="">`;
+                return `<img src="${icon}" class="model-icon" alt="Model icon">`;
             }
             return `<span class="model-icon">${icon}</span>`;
         }
@@ -1661,7 +2398,7 @@
         function getModelIcon(modelName) {
             const model = allModels.find(m => m.name.toLowerCase() === modelName.toLowerCase() || m.id.toLowerCase() === modelName.toLowerCase());
             if (model && model.icon) {
-                return `<img src="${model.icon}" class="model-icon" alt="">`;
+                return `<img src="${model.icon}" class="model-icon" alt="${modelName} icon">`;
             }
             return `<span class="model-icon">🤖</span>`;
         }
@@ -1713,7 +2450,8 @@
                         ${model.name}
                         <span class="api-status">${statusIcon}</span>
                     </label>
-                    <input type="text" class="api-key-input" id="${model.id}Key" placeholder="${placeholderText}" value="">
+                    <label for="${model.id}Key" class="sr-only">${model.name} API Key</label>
+                    <input type="text" class="api-key-input" id="${model.id}Key" placeholder="${placeholderText}" value="" aria-label="${model.name} API Key">
                 </div>`;
             }
 

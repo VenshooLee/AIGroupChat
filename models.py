@@ -219,6 +219,9 @@ class ConversationModel:
 
     def delete(self, id):
         self.collection.remove({'_id': id})
+    
+    def delete_all(self):
+        self.collection.remove({})
 
     def _serialize(self, doc):
         if not doc:

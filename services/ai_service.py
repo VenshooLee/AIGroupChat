@@ -141,7 +141,7 @@ class AIService:
         except requests.exceptions.RequestException as e:
             return {"content": f"[Error: DeepSeek API request failed - {str(e)}]", "thinking": None}
 
-    def _chat_minimax(self, messages: list, system_prompt: str) -> dict:
+    def _chat_minimax(self, messages: list, system_prompt: str, stream_callback=None) -> dict:
         """MiniMax Chat API (Anthropic-compatible)"""
         api_key = self.api_keys.get("minimax")
         if not api_key or not isinstance(api_key, str) or not api_key.strip():
@@ -162,36 +162,69 @@ class AIService:
                 })
 
             data = {
-                "model": "MiniMax-M3",
-                "max_tokens": 4096,
+                "model": "MiniMax-M2.7-highspeed",
+                "max_tokens": 8192,
                 "messages": minimax_messages
             }
 
             if system_prompt:
                 data["system"] = system_prompt
 
-            response = requests.post(
-                "https://api.minimaxi.com/anthropic/v1/messages",
-                headers=headers,
-                json=data,
-                timeout=60
-            )
-            response.raise_for_status()
-            result = response.json()
+            # 流式输出
+            if stream_callback:
+                data["stream"] = True
+                response = requests.post(
+                    "https://api.minimaxi.com/anthropic/v1/messages",
+                    headers=headers,
+                    json=data,
+                    stream=True,
+                    timeout=120
+                )
+                response.raise_for_status()
+                
+                full_content = ""
+                for line in response.iter_lines():
+                    if line:
+                        line = line.decode('utf-8')
+                        if line.startswith("data:"):
+                            data_str = line[5:].strip()
+                            if data_str and data_str != "[DONE]":
+                                try:
+                                    import json
+                                    chunk = json.loads(data_str)
+                                    if chunk.get("type") == "content_block_delta":
+                                        delta = chunk.get("delta", {})
+                                        if delta.get("type") == "text_delta":
+                                            text = delta.get("text", "")
+                                            full_content += text
+                                            stream_callback(text)
+                                except:
+                                    pass
+                
+                return {"content": full_content, "thinking": None}
+            else:
+                response = requests.post(
+                    "https://api.minimaxi.com/anthropic/v1/messages",
+                    headers=headers,
+                    json=data,
+                    timeout=120
+                )
+                response.raise_for_status()
+                result = response.json()
 
-            if not result:
-                return {"content": "[Error: MiniMax API returned empty response]", "thinking": None}
+                if not result:
+                    return {"content": "[Error: MiniMax API returned empty response]", "thinking": None}
 
-            content = result.get("content", [])
-            if isinstance(content, list):
-                for block in content:
-                    if block.get("type") == "text":
-                        return {"content": block.get("text", ""), "thinking": None}
+                content = result.get("content", [])
+                if isinstance(content, list):
+                    for block in content:
+                        if block.get("type") == "text":
+                            return {"content": block.get("text", ""), "thinking": None}
 
-            if "content" in result and isinstance(result["content"], str):
-                return {"content": result["content"], "thinking": None}
+                if "content" in result and isinstance(result["content"], str):
+                    return {"content": result["content"], "thinking": None}
 
-            return {"content": "[Error: MiniMax API response format unexpected]", "thinking": None}
+                return {"content": "[Error: MiniMax API response format unexpected]", "thinking": None}
         except requests.exceptions.RequestException as e:
             return {"content": f"[Error: MiniMax API request failed - {str(e)}]", "thinking": None}
         except Exception as e:
@@ -305,13 +338,14 @@ class AIService:
             data = {
                 "model": "glm-4",
                 "messages": self._get_messages_with_system(messages, system_prompt),
-                "temperature": 0.7
+                "temperature": 0.7,
+                "max_tokens": 8192
             }
             response = requests.post(
                 "https://open.bigmodel.cn/api/paas/v4/chat/completions",
                 headers=headers,
                 json=data,
-                timeout=60
+                timeout=120
             )
             response.raise_for_status()
             return {"content": response.json()["choices"][0]["message"]["content"], "thinking": None}
@@ -506,7 +540,7 @@ class AIService:
             yield f"[Error: {str(e)}]"
 
     def _chat_minimax_stream(self, messages: list, system_prompt: str):
-        # MiniMax: use non-streaming for compatibility
+        """MiniMax streaming chat - supports real SSE streaming"""
         api_key = self.api_keys.get("minimax")
         if not api_key or not api_key.strip():
             yield "[Error: MiniMax API key not configured]"
@@ -524,8 +558,9 @@ class AIService:
                     "content": m["content"]
                 })
             data = {
-                "model": "MiniMax-M3",
-                "max_tokens": 4096,
+                "model": "MiniMax-M2.7-highspeed",
+                "max_tokens": 8192,
+                "stream": True,
                 "messages": minimax_messages
             }
             if system_prompt:
@@ -534,20 +569,25 @@ class AIService:
                 "https://api.minimaxi.com/anthropic/v1/messages",
                 headers=headers,
                 json=data,
-                timeout=60
+                stream=True,
+                timeout=120
             )
             response.raise_for_status()
-            result = response.json()
-            content = result.get("content", [])
-            if isinstance(content, list):
-                for block in content:
-                    if block.get("type") == "text":
-                        text = block.get("text", "")
-                        for char in text:
-                            yield char
-            elif "content" in result and isinstance(result["content"], str):
-                for char in result["content"]:
-                    yield char
+            for line in response.iter_lines():
+                if line:
+                    line_str = line.decode('utf-8')
+                    if line_str.startswith("data:"):
+                        data_str = line_str[5:].strip()
+                        if data_str and data_str != "[DONE]":
+                            try:
+                                import json
+                                chunk = json.loads(data_str)
+                                if chunk.get("type") == "content_block_delta":
+                                    delta = chunk.get("delta", {})
+                                    if delta.get("type") == "text_delta":
+                                        yield delta.get("text", "")
+                            except:
+                                pass
         except Exception as e:
             yield f"[Error: {str(e)}]"
 
@@ -702,13 +742,14 @@ class AIService:
                 "model": "glm-4",
                 "messages": self._get_messages_with_system(messages, system_prompt),
                 "temperature": 0.7,
+                "max_tokens": 8192,
                 "stream": True
             }
             response = requests.post(
                 "https://open.bigmodel.cn/api/paas/v4/chat/completions",
                 headers=headers,
                 json=data,
-                timeout=60,
+                timeout=120,
                 stream=True
             )
             response.raise_for_status()

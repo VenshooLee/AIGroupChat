@@ -46,6 +46,12 @@ def delete_conversation(id):
     return jsonify({"success": True})
 
 
+@api.route('/conversations/clear', methods=['DELETE'])
+def clear_all_conversations():
+    current_app.conversation_model.delete_all()
+    return jsonify({"success": True})
+
+
 # ============== Chat ==============
 
 @api.route('/chat', methods=['POST'])
@@ -271,25 +277,101 @@ def export_document(id):
     docx_doc = Document()
     docx_doc.title = doc.get('title', 'Document')
 
-    # Parse HTML content and convert to plain text
+    # Parse HTML content and convert to DOCX
     html_content = doc.get('content', '')
     if html_content:
         soup = BeautifulSoup(html_content, 'html.parser')
-        # Add paragraphs
-        for p in soup.find_all('p'):
-            docx_doc.add_paragraph(p.get_text())
-        for h1 in soup.find_all('h1'):
-            heading = docx_doc.add_heading(h1.get_text(), level=1)
-        for h2 in soup.find_all('h2'):
-            heading = docx_doc.add_heading(h2.get_text(), level=2)
-        for h3 in soup.find_all('h3'):
-            heading = docx_doc.add_heading(h3.get_text(), level=3)
-        for ul in soup.find_all('ul'):
-            for li in ul.find_all('li'):
-                docx_doc.add_paragraph(li.get_text(), style='List Bullet')
-        for ol in soup.find_all('ol'):
-            for li in ol.find_all('li'):
-                docx_doc.add_paragraph(li.get_text(), style='List Number')
+        
+        # Debug: check soup structure
+        if soup.body is None:
+            # If no body, try to use the root element directly
+            soup = BeautifulSoup(f'<body>{html_content}</body>', 'html.parser')
+        
+        # Helper function to check if element is a tag
+        def is_tag(element):
+            return hasattr(element, 'name') and element.name is not None
+        
+        # Process elements recursively
+        def process_children(container):
+            for child in container.children:
+                if not is_tag(child):
+                    # Text node
+                    text = str(child).strip()
+                    if text:
+                        docx_doc.add_paragraph(text)
+                    continue
+                
+                name = child.name
+                if name in ['script', 'style']:
+                    continue
+                
+                if name == 'p':
+                    # Get text content including nested elements
+                    text = child.get_text().strip()
+                    if text:
+                        docx_doc.add_paragraph(text)
+                elif name in ['h1', 'h2', 'h3']:
+                    level = int(name[1])
+                    docx_doc.add_heading(child.get_text(), level=level)
+                elif name == 'ul':
+                    for li in child.find_all('li', recursive=False):
+                        docx_doc.add_paragraph(li.get_text(), style='List Bullet')
+                elif name == 'ol':
+                    for li in child.find_all('li', recursive=False):
+                        docx_doc.add_paragraph(li.get_text(), style='List Number')
+                elif name == 'div':
+                    classes = child.get('class', [])
+                    if 'quill-better-table-wrapper' in classes:
+                        # Find the table inside the wrapper
+                        table = child.find('table', class_='quill-better-table')
+                        if table:
+                            rows = table.find_all('tr')
+                            if rows:
+                                # Count max columns
+                                max_cols = 0
+                                for row in rows:
+                                    cells = row.find_all(['th', 'td'])
+                                    max_cols = max(max_cols, len(cells))
+                                
+                                if max_cols > 0:
+                                    # Create DOCX table
+                                    docx_table = docx_doc.add_table(rows=len(rows), cols=max_cols)
+                                    docx_table.style = 'Table Grid'
+                                    
+                                    for i, row in enumerate(rows):
+                                        cells = row.find_all(['th', 'td'])
+                                        for j, cell in enumerate(cells):
+                                            if j < max_cols:
+                                                cell_text = cell.get_text().strip()
+                                                docx_table.cell(i, j).text = cell_text
+                    else:
+                        # Process children of other divs
+                        process_children(child)
+                elif name == 'table':
+                    rows = child.find_all('tr')
+                    if rows:
+                        max_cols = 0
+                        for row in rows:
+                            cells = row.find_all(['th', 'td'])
+                            max_cols = max(max_cols, len(cells))
+                        
+                        if max_cols > 0:
+                            docx_table = docx_doc.add_table(rows=len(rows), cols=max_cols)
+                            docx_table.style = 'Table Grid'
+                            
+                            for i, row in enumerate(rows):
+                                cells = row.find_all(['th', 'td'])
+                                for j, cell in enumerate(cells):
+                                    if j < max_cols:
+                                        cell_text = cell.get_text().strip()
+                                        docx_table.cell(i, j).text = cell_text
+                else:
+                    # Process children of unknown elements
+                    process_children(child)
+        
+        # Process body content
+        if soup.body:
+            process_children(soup.body)
     else:
         docx_doc.add_paragraph('')
 
