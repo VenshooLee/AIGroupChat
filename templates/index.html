@@ -378,10 +378,13 @@
         .message.user {
             background: var(--user-bg);
             margin-left: auto;
+            border: 1px solid rgba(37, 99, 235, 0.15);
         }
 
         .message.assistant {
-            background: var(--assistant-bg);
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
         }
 
         .message-header {
@@ -432,6 +435,39 @@
             word-break: break-word;
         }
         
+        .message-content code {
+            background: #f1f5f9;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+            font-size: 13px;
+            color: #dc2626;
+            border: 1px solid #e2e8f0;
+        }
+        
+        .message-content pre {
+            background: #1e293b;
+            color: #e2e8f0;
+            padding: 16px;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 12px 0;
+            font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+        
+        .message-content blockquote {
+            border-left: 3px solid #94a3b8;
+            padding-left: 12px;
+            margin: 8px 0;
+            color: #64748b;
+        }
+        
+        .message-content strong {
+            color: #1e293b;
+        }
+        
         .table-wrapper {
             overflow-x: auto;
             margin: 12px 0;
@@ -470,7 +506,8 @@
         }
 
         .thinking-section {
-            background: #f5f5f5;
+            background: #f1f5f9;
+            border: 1px solid #e2e8f0;
             border-radius: 8px;
             padding: 10px 12px;
             margin-bottom: 10px;
@@ -479,12 +516,12 @@
 
         .thinking-header {
             font-weight: 600;
-            color: #666;
+            color: #64748b;
             margin-bottom: 6px;
         }
 
         .thinking-content {
-            color: #555;
+            color: #475569;
             white-space: pre-wrap;
             word-break: break-word;
             line-height: 1.5;
