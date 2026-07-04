@@ -1123,22 +1123,6 @@
     <div class="toast" id="toast"></div>
 
     <script>
-        // Attach event listener to discuss button
-        document.addEventListener('DOMContentLoaded', function() {
-            setTimeout(function() {
-                var btn = document.getElementById('discussBtn');
-                if (btn) {
-                    btn.addEventListener('click', function(e) {
-                        e.preventDefault();
-                        if (typeof startDiscuss === 'function') {
-                            startDiscuss();
-                        }
-                    });
-                }
-            }, 100);
-        });
-    </script>
-    <script>
         // Global state
         let currentConversationId = null;
         let currentDocumentId = null;
@@ -1149,7 +1133,9 @@
         
         // Discuss mode state
         let isDiscussMode = false;
+        let isStoppingDiscuss = false;
         let discussAbortController = null;
+        let discussInstanceId = 0; // Track current discussion instance
         let discussModels = [];
         let discussMessage = '';
         let discussCurrentRound = 0;
@@ -1160,6 +1146,7 @@
 
         // Initialize
         document.addEventListener('DOMContentLoaded', async () => {
+            document.getElementById('discussBtn').onclick = startDiscuss;
             initEditor();
             await loadModels();
             await loadSettings();
@@ -1820,6 +1807,7 @@
             const message = input.value.trim();
 
             if (!message) return;
+            console.log('sendMessage called, isDiscussMode:', isDiscussMode, 'isStoppingDiscuss:', isStoppingDiscuss);
             if (isDiscussMode) {
                 showToast('Discussion in progress. Please wait for it to end.', 'error');
                 return;
@@ -1962,7 +1950,25 @@
 
         // Discuss mode functions
         async function startDiscuss() {
+            console.log('1. startDiscuss called, isDiscussMode:', isDiscussMode, 'isStoppingDiscuss:', isStoppingDiscuss);
+            
+            // Wait for any ongoing stop operation to complete
+            if (isStoppingDiscuss) {
+                console.log('1b. Waiting for stopDiscuss to complete...');
+                while (isStoppingDiscuss) {
+                    await new Promise(resolve => setTimeout(resolve, 50));
+                }
+                console.log('1c. stopDiscuss completed, continuing...');
+            }
+            
+            // Prevent starting a new discussion while already in one
+            if (isDiscussMode) {
+                console.log('1d. Already in discuss mode, ignoring');
+                return;
+            }
+            
             const message = document.getElementById('chatInput').value.trim();
+            console.log('2. message:', message);
             const input = document.getElementById('chatInput');
             
             if (!message) {
@@ -1971,20 +1977,29 @@
             }
             
             if (selectedModels.length < 2) {
+                console.log('3. selectedModels.length < 2, returning');
                 showToast('Please select at least 2 models for discussion', 'error');
                 return;
             }
+            console.log('3. selectedModels check passed, models:', selectedModels);
             
             const discussBtn = document.getElementById('discussBtn');
             const sendBtn = document.getElementById('sendBtn');
+
             
             // Start discuss mode
+            isStoppingDiscuss = false;
+            // Create new AbortController first
+            discussAbortController = new AbortController();
+            discussInstanceId++; // Increment instance ID
+            const currentInstanceId = discussInstanceId;
+            // Then set isDiscussMode to true
             isDiscussMode = true;
+            console.log('4. isDiscussMode set to true, instanceId:', currentInstanceId);
             discussMessage = message;
             discussModels = [...selectedModels];
             discussCurrentRound = 0;
-            discussAbortController = new AbortController();
-            conclusionReachedModels = []; // Reset conclusion tracking
+            conclusionReachedModels = [];
             
             // Update UI
             discussBtn.className = 'send-btn stop-btn';
@@ -2010,9 +2025,12 @@
                 }
                 
                 // Start multi-turn discussion
+                console.log('5. Calling runDiscussion()');
                 await runDiscussion();
+                console.log('6. runDiscussion() completed');
                 
             } catch (error) {
+                console.log('7. startDiscuss catch block, error:', error.name, error.message);
                 if (error.name !== 'AbortError') {
                     showToast('Discussion error: ' + error.message, 'error');
                 }
@@ -2021,6 +2039,19 @@
         
         async function runDiscussion() {
             const discussBtn = document.getElementById('discussBtn');
+            const currentInstanceId = discussInstanceId;
+            
+            // Check if abort was requested before starting
+            if (discussAbortController && discussAbortController.signal.aborted) {
+                console.log('runDiscussion aborted before starting');
+                return;
+            }
+            
+            // Check if this instance is still current
+            if (discussInstanceId !== currentInstanceId) {
+                console.log('runDiscussion ignored - discussion instance changed from', currentInstanceId, 'to', discussInstanceId);
+                return;
+            }
             
             // Build discussion context with termination hints
             let context = `You are participating in a group discussion. The topic is: "${discussMessage}"\n\n`;
@@ -2053,6 +2084,13 @@
             // Update button text
             discussBtn.innerHTML = `<img src="/static/icons/chat-off-line.svg" class="btn-icon-white" alt="Stop">Stop (${currentModel})`;
             
+            // Abort if this instance is no longer current before starting fetch
+            if (discussInstanceId !== currentInstanceId) {
+                console.log('runDiscussion instance changed before fetch');
+                roundDiv.remove();
+                return;
+            }
+            
             // Stream response from current model
             const response = await fetch('/api/chat/stream', {
                 method: 'POST',
@@ -2061,7 +2099,8 @@
                     message: context,
                     models: [currentModel],
                     conversation_id: currentConversationId
-                })
+                }),
+                signal: discussAbortController.signal
             });
             
             const reader = response.body.getReader();
@@ -2189,28 +2228,52 @@
             discussCurrentRound++;
             await runDiscussion();
         }
-        
         function stopDiscuss() {
+            console.log('A. stopDiscuss called, isStoppingDiscuss:', isStoppingDiscuss, 'isDiscussMode:', isDiscussMode);
+            
+            // Prevent multiple concurrent stop operations
+            if (isStoppingDiscuss) {
+                console.log('B. stopDiscuss ignored due to isStoppingDiscuss');
+                return;
+            }
+            
+            // Only stop if actually in discuss mode
+            if (!isDiscussMode) {
+                console.log('B2. stopDiscuss ignored due to isDiscussMode already false');
+                return;
+            }
+            
+            isStoppingDiscuss = true;
+            console.log('C. stopDiscuss proceeding');
+            
+            // Invalidate this discussion instance and abort its pending fetch
+            discussInstanceId++;
+            if (discussAbortController) {
+                console.log('A1. Aborting discussAbortController');
+                discussAbortController.abort();
+            }
+            
+            isDiscussMode = false;
+            
             const discussBtn = document.getElementById('discussBtn');
             const sendBtn = document.getElementById('sendBtn');
             const input = document.getElementById('chatInput');
             
-            isDiscussMode = false;
             discussMessage = '';
             discussModels = [];
             conclusionReachedModels = [];
             discussCurrentRound = 0;
             
-            if (discussAbortController) {
-                discussAbortController.abort();
-            }
-            
             // Reset UI
             discussBtn.className = 'send-btn discuss-btn';
             discussBtn.innerHTML = '<img src="/static/icons/discuss-line.svg" class="btn-icon-white" alt="Discuss">Discuss';
             discussBtn.onclick = startDiscuss;
+            console.log('discussBtn.onclick set to:', discussBtn.onclick);
             sendBtn.disabled = false;
             input.disabled = false;
+            
+            isStoppingDiscuss = false;
+            console.log('stopDiscuss complete, isDiscussMode:', isDiscussMode);
             
             // Clear input
             input.value = '';
