@@ -1324,7 +1324,7 @@
                     keyboardBindings = Quill.import('modules/better-table').keyboardBindings;
                 }
             } catch (e) {
-                console.log('better-table module not loaded yet');
+                // better-table not loaded yet
             }
             
             quill = new Quill('#editor', {
@@ -1807,7 +1807,6 @@
             const message = input.value.trim();
 
             if (!message) return;
-            console.log('sendMessage called, isDiscussMode:', isDiscussMode, 'isStoppingDiscuss:', isStoppingDiscuss);
             if (isDiscussMode) {
                 showToast('Discussion in progress. Please wait for it to end.', 'error');
                 return;
@@ -1950,25 +1949,19 @@
 
         // Discuss mode functions
         async function startDiscuss() {
-            console.log('1. startDiscuss called, isDiscussMode:', isDiscussMode, 'isStoppingDiscuss:', isStoppingDiscuss);
-            
             // Wait for any ongoing stop operation to complete
             if (isStoppingDiscuss) {
-                console.log('1b. Waiting for stopDiscuss to complete...');
                 while (isStoppingDiscuss) {
                     await new Promise(resolve => setTimeout(resolve, 50));
                 }
-                console.log('1c. stopDiscuss completed, continuing...');
             }
             
             // Prevent starting a new discussion while already in one
             if (isDiscussMode) {
-                console.log('1d. Already in discuss mode, ignoring');
                 return;
             }
             
             const message = document.getElementById('chatInput').value.trim();
-            console.log('2. message:', message);
             const input = document.getElementById('chatInput');
             
             if (!message) {
@@ -1977,25 +1970,19 @@
             }
             
             if (selectedModels.length < 2) {
-                console.log('3. selectedModels.length < 2, returning');
                 showToast('Please select at least 2 models for discussion', 'error');
                 return;
             }
-            console.log('3. selectedModels check passed, models:', selectedModels);
             
             const discussBtn = document.getElementById('discussBtn');
             const sendBtn = document.getElementById('sendBtn');
 
-            
             // Start discuss mode
             isStoppingDiscuss = false;
-            // Create new AbortController first
             discussAbortController = new AbortController();
-            discussInstanceId++; // Increment instance ID
+            discussInstanceId++;
             const currentInstanceId = discussInstanceId;
-            // Then set isDiscussMode to true
             isDiscussMode = true;
-            console.log('4. isDiscussMode set to true, instanceId:', currentInstanceId);
             discussMessage = message;
             discussModels = [...selectedModels];
             discussCurrentRound = 0;
@@ -2025,12 +2012,9 @@
                 }
                 
                 // Start multi-turn discussion
-                console.log('5. Calling runDiscussion()');
                 await runDiscussion();
-                console.log('6. runDiscussion() completed');
                 
             } catch (error) {
-                console.log('7. startDiscuss catch block, error:', error.name, error.message);
                 if (error.name !== 'AbortError') {
                     showToast('Discussion error: ' + error.message, 'error');
                 }
@@ -2041,15 +2025,9 @@
             const discussBtn = document.getElementById('discussBtn');
             const currentInstanceId = discussInstanceId;
             
-            // Check if abort was requested before starting
-            if (discussAbortController && discussAbortController.signal.aborted) {
-                console.log('runDiscussion aborted before starting');
-                return;
-            }
-            
-            // Check if this instance is still current
-            if (discussInstanceId !== currentInstanceId) {
-                console.log('runDiscussion ignored - discussion instance changed from', currentInstanceId, 'to', discussInstanceId);
+            // Check if abort was requested or instance changed before starting
+            if ((discussAbortController && discussAbortController.signal.aborted) ||
+                discussInstanceId !== currentInstanceId) {
                 return;
             }
             
@@ -2073,7 +2051,7 @@
             // Get current model for this round
             const modelIndex = discussCurrentRound % discussModels.length;
             const currentModel = discussModels[modelIndex];
-            currentRespondingModel = currentModel; // Track for conclusion handling
+            currentRespondingModel = currentModel;
             
             // Add round indicator
             const roundDiv = document.createElement('div');
@@ -2086,7 +2064,6 @@
             
             // Abort if this instance is no longer current before starting fetch
             if (discussInstanceId !== currentInstanceId) {
-                console.log('runDiscussion instance changed before fetch');
                 roundDiv.remove();
                 return;
             }
@@ -2176,7 +2153,6 @@
             
             // If model indicates CONTINUE, always continue discussion (if not at max rounds)
             if (hasContinue) {
-                console.log('CONTINUE detected from:', currentRespondingModel);
                 if (discussCurrentRound >= maxDiscussRounds - 1) {
                     stopDiscuss();
                     return;
@@ -2188,9 +2164,6 @@
             
             // If model indicates conclusion AND we've met minimum rounds
             if (hasConclusion && discussCurrentRound + 1 >= minRounds) {
-                console.log('CONCLUSION detected from:', currentRespondingModel);
-                console.log('Models that have concluded:', conclusionReachedModels);
-                
                 // Check if all selected models have reached conclusion
                 const allConcluded = discussModels.every(m => conclusionReachedModels.includes(m));
                 
@@ -2200,7 +2173,6 @@
                 }
                 
                 // If current model concluded but others haven't, continue to next model
-                // but skip models that have already concluded
                 const nextModelIndex = discussModels.indexOf(currentRespondingModel) + 1;
                 
                 // Check if all remaining models have also concluded
@@ -2229,27 +2201,16 @@
             await runDiscussion();
         }
         function stopDiscuss() {
-            console.log('A. stopDiscuss called, isStoppingDiscuss:', isStoppingDiscuss, 'isDiscussMode:', isDiscussMode);
-            
             // Prevent multiple concurrent stop operations
-            if (isStoppingDiscuss) {
-                console.log('B. stopDiscuss ignored due to isStoppingDiscuss');
-                return;
-            }
-            
-            // Only stop if actually in discuss mode
-            if (!isDiscussMode) {
-                console.log('B2. stopDiscuss ignored due to isDiscussMode already false');
+            if (isStoppingDiscuss || !isDiscussMode) {
                 return;
             }
             
             isStoppingDiscuss = true;
-            console.log('C. stopDiscuss proceeding');
             
             // Invalidate this discussion instance and abort its pending fetch
             discussInstanceId++;
             if (discussAbortController) {
-                console.log('A1. Aborting discussAbortController');
                 discussAbortController.abort();
             }
             
@@ -2268,12 +2229,10 @@
             discussBtn.className = 'send-btn discuss-btn';
             discussBtn.innerHTML = '<img src="/static/icons/discuss-line.svg" class="btn-icon-white" alt="Discuss">Discuss';
             discussBtn.onclick = startDiscuss;
-            console.log('discussBtn.onclick set to:', discussBtn.onclick);
             sendBtn.disabled = false;
             input.disabled = false;
             
             isStoppingDiscuss = false;
-            console.log('stopDiscuss complete, isDiscussMode:', isDiscussMode);
             
             // Clear input
             input.value = '';
@@ -2377,10 +2336,6 @@
             try {
                 const response = await fetch(`/api/documents/${id}`);
                 const doc = await response.json();
-                console.log('=== loadDocument ===');
-                console.log('doc:', doc);
-                console.log('doc.title:', doc.title);
-                console.log('doc.content:', doc.content);
                 currentDocumentId = doc._id;
                 document.getElementById('docTitle').value = doc.title;
 
@@ -2419,12 +2374,6 @@
             updateDocStatus('Saving...');
             const title = document.getElementById('docTitle').value;
             const content = quill.root.innerHTML;
-            
-            console.log('=== saveDocument ===');
-            console.log('currentDocumentId:', currentDocumentId);
-            console.log('title:', title);
-            console.log('content length:', content.length);
-            console.log('content preview:', content.substring(0, 200));
 
             try {
                 const response = await fetch(`/api/documents/${currentDocumentId}`, {
@@ -2432,10 +2381,8 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ title, content })
                 });
-                console.log('save response:', response.status, response.ok);
                 if (!response.ok) {
                     const err = await response.text();
-                    console.log('save error:', err);
                     showToast('Failed to save: ' + err, 'error');
                     return;
                 }
@@ -2492,13 +2439,9 @@
         }
 
         async function loadSettingsIntoForm() {
-            console.log('=== loadSettingsIntoForm called ===');
             // Get current settings
             const response = await fetch('/api/settings');
             const settings = await response.json();
-
-            console.log('Settings loaded:', settings);
-            console.log('All models:', allModels);
 
             // Render model settings
             const container = document.getElementById('modelSettingsList');
@@ -2507,14 +2450,10 @@
             for (const model of allModels) {
                 const apiKeys = settings.api_keys || {};
                 const keyValue = apiKeys[model.id];
-                // hasKey: 如果是字符串且非空，或者是布尔值 true
                 const hasKey = (typeof keyValue === 'string' && keyValue.length > 0) || keyValue === true;
-
-                console.log(`Model ${model.id}: keyValue=`, keyValue, `hasKey=`, hasKey);
 
                 const placeholderText = hasKey ? '••••••••••••••••••••••••••••••••' : 'API Key';
                 const statusIcon = hasKey ? '✓' : '';
-                console.log(`  -> placeholderText="${placeholderText}" statusIcon="${statusIcon}"`);
 
                 html += `
                 <div class="model-setting-block">
