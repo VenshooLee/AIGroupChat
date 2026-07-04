@@ -376,7 +376,7 @@
             position: relative;
         }
 
-        .message.user {
+        .message-user {
             background: var(--user-bg);
             margin-left: auto;
             border: 1px solid rgba(37, 99, 235, 0.15);
@@ -1732,7 +1732,7 @@
             }
 
             const message = document.createElement('div');
-            message.className = `message ${role}`;
+            message.className = `message message-${role}`;
             const header = model ? `<div class="message-header"><span class="message-model">${getModelIcon(model)}<span style="color: ${getModelColor(model)}">${model}</span></span></div>` : '';
             const actions = role === 'assistant' && model ? `
                 <div class="message-actions">
