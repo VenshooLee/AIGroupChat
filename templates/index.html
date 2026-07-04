@@ -319,21 +319,20 @@
         .model-selector {
             display: flex;
             flex-wrap: wrap;
-            gap: 12px;
+            gap: 8px;
         }
 
         .model-checkbox {
             display: flex;
             align-items: center;
             gap: 6px;
-            padding: 10px 18px;
+            padding: 6px 12px;
             background: var(--background);
             border-radius: 20px;
             cursor: pointer;
             font-size: 13px;
             transition: all 0.2s;
             border: 1px solid transparent;
-            min-height: 40px;
         }
 
         .model-checkbox:hover {
@@ -1655,7 +1654,7 @@
                 return `
                 <div class="model-checkbox ${isActive ? 'active' : ''}" data-model="${model.id}">
                     <input type="checkbox" id="model_${model.id}" value="${model.id}" ${isActive ? 'checked' : ''} title="${model.name}">
-                    <label for="model_${model.id}">${renderIcon(model.icon)} ${model.name}</label>
+                    <label data-for="model_${model.id}">${renderIcon(model.icon)} ${model.name}</label>
                 </div>
             `}).join('');
 
