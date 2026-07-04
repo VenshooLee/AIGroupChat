@@ -190,13 +190,18 @@
             border-radius: 4px;
             transition: background-color 0.2s;
             margin-left: 8px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
         }
         
         .clear-history-btn img {
             width: 16px;
             height: 16px;
             color: #ef4444;
-            filter: invert(30%) sepia(90%) saturate(2000%) hue-rotate(340deg);
+            filter: invert(25%) sepia(80%) saturate(1500%) hue-rotate(350deg);
+            vertical-align: middle;
+            margin-top: 2px;
         }
         
         .clear-history-btn:hover {
@@ -1075,7 +1080,7 @@
                 <div id="editor"></div>
             </div>
             <div class="editor-footer">
-                <span class="copyright">Copyright © 2026 <a href="mailto:venshoo@163.com" style="color: var(--primary); text-decoration: none;">Venshoo</a>. All Rights Reserved. Version: 0.0.3</span>
+                <span class="copyright">Copyright © 2026 <a href="mailto:venshoo@163.com" style="color: var(--primary); text-decoration: none;">Venshoo</a>. All Rights Reserved. Version: 0.0.4</span>
                 <div class="editor-actions">
                     <button class="btn btn-secondary" onclick="newDocument()" title="New document">New</button>
                     <button class="btn btn-secondary" onclick="saveDocument()" title="Save document">Save</button>
@@ -1247,6 +1252,8 @@
                 const conv = await response.json();
                 currentConversationId = convId;
                 renderConversationMessages(conv.messages || []);
+                // 重新渲染历史列表以更新 active 状态
+                loadConversations();
             } catch (error) {
                 showToast('Failed to load conversation: ' + error.message, 'error');
             }
