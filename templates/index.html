@@ -1820,6 +1820,10 @@
             const message = input.value.trim();
 
             if (!message) return;
+            if (isDiscussMode) {
+                showToast('Discussion in progress. Please wait for it to end.', 'error');
+                return;
+            }
             if (selectedModels.length === 0) {
                 showToast('Please select at least one model', 'error');
                 return;
