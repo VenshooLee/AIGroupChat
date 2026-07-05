@@ -2111,15 +2111,19 @@
             }
             
             // Stream response from current model
+            // Only pass original_message on first round to avoid duplicate entries
+            const requestBody = {
+                message: context,
+                models: [currentModel],
+                conversation_id: currentConversationId
+            };
+            if (discussCurrentRound === 0) {
+                requestBody.original_message = discussMessage;
+            }
             const response = await fetch('/api/chat/stream', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    message: context,
-                    models: [currentModel],
-                    conversation_id: currentConversationId,
-                    original_message: discussMessage
-                }),
+                body: JSON.stringify(requestBody),
                 signal: discussAbortController.signal
             });
             

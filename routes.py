@@ -161,7 +161,7 @@ def chat_stream():
     
     existing_messages = []
     
-    # Extract original message for history (used in discussion mode)
+    # Extract original message for history (used in discussion mode first round only)
     original_message = request.json.get('original_message') if request.is_json else None
     
     if conversation_id:
@@ -171,9 +171,9 @@ def chat_stream():
                 {"role": m["role"], "content": m["content"]}
                 for m in conv.get('messages', [])
             ]
-        # Add user message to conversation (use original_message if available)
-        history_message = original_message if original_message else message
-        conversation_model.add_message(conversation_id, "user", "user", history_message)
+        # Only add user message to conversation on first round
+        if original_message:
+            conversation_model.add_message(conversation_id, "user", "user", original_message)
 
     # Get current time
     utc_now = datetime.now(timezone.utc)
