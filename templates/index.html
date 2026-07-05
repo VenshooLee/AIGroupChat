@@ -377,7 +377,9 @@
         }
 
         .message-user {
-            display: none !important;
+            background: var(--user-bg);
+            margin-left: auto;
+            border: 1px solid rgba(37, 99, 235, 0.15);
         }
 
         .message-assistant {
@@ -1197,6 +1199,9 @@
             sidebar.classList.toggle('active');
             if (sidebar.classList.contains('active')) {
                 loadConversations();
+            } else {
+                // 关闭侧边栏时移除历史视图标记
+                document.getElementById('chatMessages').classList.remove('history-view');
             }
         }
 
@@ -1284,6 +1289,8 @@
 
         function renderConversationMessages(messages) {
             const container = document.getElementById('chatMessages');
+            // 添加标记表示正在显示历史记录
+            container.classList.add('history-view');
             if (messages.length === 0) {
                 container.innerHTML = `
                     <div class="empty-state">
@@ -1307,6 +1314,7 @@
         function newConversation() {
             currentConversationId = null;
             const container = document.getElementById('chatMessages');
+            container.classList.remove('history-view');
             container.innerHTML = `
                 <div class="empty-state">
                     <div class="empty-state-icon">💬</div>
@@ -1724,7 +1732,11 @@
             }
 
             const message = document.createElement('div');
-            message.className = `message message-${role}`;
+            // 在历史视图中隐藏用户消息
+            const roleClass = (role === 'user' && container.classList.contains('history-view')) 
+                ? '' 
+                : `message-${role}`;
+            message.className = roleClass ? `message ${roleClass}` : 'message';
             const header = model ? `<div class="message-header"><span class="message-model">${getModelIcon(model)}<span style="color: ${getModelColor(model)}">${model}</span></span></div>` : '';
             const actions = role === 'assistant' && model ? `
                 <div class="message-actions">
