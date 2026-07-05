@@ -1659,18 +1659,24 @@
                 const isActive = selectedModels.includes(model.id);
                 return `
                 <div class="model-checkbox ${isActive ? 'active' : ''}" data-model="${model.id}">
-                    ${renderIcon(model.icon)} ${model.name}
+                    <input type="checkbox" id="model_${model.id}" value="${model.id}" ${isActive ? 'checked' : ''} title="${model.name}">
+                    <label data-for="model_${model.id}">${renderIcon(model.icon)} ${model.name}</label>
                 </div>
             `}).join('');
 
-            // Add click handlers to the divs
+            // Add click handlers to the divs (not labels)
             container.querySelectorAll('.model-checkbox').forEach(el => {
-                el.addEventListener('click', () => {
-                    el.classList.toggle('active');
+                el.addEventListener('click', (e) => {
+                    // Don't toggle if clicking directly on checkbox
+                    if (e.target.tagName === 'INPUT') return;
 
-                    // Update selected models based on active state
-                    selectedModels = Array.from(container.querySelectorAll('.model-checkbox.active'))
-                        .map(el => el.dataset.model);
+                    const checkbox = el.querySelector('input');
+                    checkbox.checked = !checkbox.checked;
+                    el.classList.toggle('active', checkbox.checked);
+
+                    // Update selected models
+                    selectedModels = Array.from(container.querySelectorAll('input:checked'))
+                        .map(input => input.value);
                 });
             });
         }
