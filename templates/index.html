@@ -2117,7 +2117,8 @@
                 body: JSON.stringify({
                     message: context,
                     models: [currentModel],
-                    conversation_id: currentConversationId
+                    conversation_id: currentConversationId,
+                    original_message: discussMessage
                 }),
                 signal: discussAbortController.signal
             });

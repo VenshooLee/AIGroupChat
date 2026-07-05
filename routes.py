@@ -160,6 +160,10 @@ def chat_stream():
     conversation_model = current_app.conversation_model
     
     existing_messages = []
+    
+    # Extract original message for history (used in discussion mode)
+    original_message = request.json.get('original_message') if request.is_json else None
+    
     if conversation_id:
         conv = conversation_model.get_by_id(conversation_id)
         if conv:
@@ -167,8 +171,9 @@ def chat_stream():
                 {"role": m["role"], "content": m["content"]}
                 for m in conv.get('messages', [])
             ]
-        # Add user message to conversation
-        conversation_model.add_message(conversation_id, "user", "user", message)
+        # Add user message to conversation (use original_message if available)
+        history_message = original_message if original_message else message
+        conversation_model.add_message(conversation_id, "user", "user", history_message)
 
     # Get current time
     utc_now = datetime.now(timezone.utc)
