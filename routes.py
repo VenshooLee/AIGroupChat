@@ -171,9 +171,20 @@ def chat_stream():
                 {"role": m["role"], "content": m["content"]}
                 for m in conv.get('messages', [])
             ]
-        # Only add user message to conversation on first round
+            # Check if this is the first message in the conversation
+            is_first_message = len(existing_messages) == 0
+        else:
+            is_first_message = True
+        
+        # Save user message to conversation
+        # Discuss mode: save original_message (short topic) on first round only, skip subsequent rounds
+        # Chat mode: save message (user input) every time
         if original_message:
+            # Discuss mode first round: save the topic
             conversation_model.add_message(conversation_id, "user", "user", original_message)
+        elif is_first_message:
+            # Chat mode: save every user message
+            conversation_model.add_message(conversation_id, "user", "user", message)
 
     # Get current time
     utc_now = datetime.now(timezone.utc)

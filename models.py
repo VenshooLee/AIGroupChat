@@ -10,15 +10,15 @@ def get_local_now():
     """获取北京时间"""
     return datetime.now(BEIJING_TZ)
 
-# 使用 TinyDB 作为嵌入式数据库，无需安装 MongoDB
+# MongoDB support
 try:
-    from tinydb import TinyDB, Query
-    HAS_TINYDB = True
+    from pymongo import MongoClient
+    HAS_PYMONGO = True
 except ImportError:
-    HAS_TINYDB = False
+    HAS_PYMONGO = False
 
 class Database:
-    """嵌入式数据库，使用 JSON 文件存储"""
+    """MongoDB 数据库"""
     _instance = None
 
     def __new__(cls):
@@ -27,146 +27,24 @@ class Database:
         return cls._instance
 
     def init_app(self, app):
-        # 数据存储目录
-        data_dir = os.path.join(os.path.dirname(__file__), 'data')
-        os.makedirs(data_dir, exist_ok=True)
-
-        self._db_path = os.path.join(data_dir, 'groupchat.json')
-
-        if HAS_TINYDB:
-            self._db = TinyDB(self._db_path)
-        else:
-            # 纯 Python 实现的简单 JSON 数据库
-            self._db = JsonDB(self._db_path)
-
-    @property
-    def db(self):
-        return self._db
+        # 从环境变量或设置获取 MongoDB URI
+        mongo_uri = os.environ.get('MONGO_URI', 'mongodb://localhost:27017/')
+        db_name = os.environ.get('MONGO_DB', 'groupchat_db')
+        
+        self._client = MongoClient(mongo_uri)
+        self._db = self._client[db_name]
 
     @property
     def conversations(self):
-        return self._db.table('conversations')
+        return self._db.conversations
 
     @property
     def documents(self):
-        return self._db.table('documents')
+        return self._db.documents
 
     @property
     def settings(self):
-        return self._db.table('settings')
-
-
-class JsonDbTable:
-    """简单的 JSON 数据库表实现"""
-    def __init__(self, db_path, table_name):
-        self._db_path = db_path
-        self._table_name = table_name
-        self._data = self._load()
-
-    def _load(self):
-        if os.path.exists(self._db_path):
-            try:
-                with open(self._db_path, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-                    return data.get(self._table_name, [])
-            except (json.JSONDecodeError, IOError):
-                return []
-        return []
-
-    def _save(self):
-        # 读取现有数据
-        if os.path.exists(self._db_path):
-            try:
-                with open(self._db_path, 'r', encoding='utf-8') as f:
-                    all_data = json.load(f)
-            except (json.JSONDecodeError, IOError):
-                all_data = {}
-        else:
-            all_data = {}
-
-        all_data[self._table_name] = self._data
-
-        with open(self._db_path, 'w', encoding='utf-8') as f:
-            json.dump(all_data, f, ensure_ascii=False, indent=2, default=str)
-
-    def insert(self, doc):
-        if '_id' not in doc:
-            doc['_id'] = str(uuid.uuid4())
-        self._data.append(doc)
-        self._save()
-        return doc
-
-    def all(self):
-        return self._data
-
-    def find(self, cond=None):
-        if cond is None:
-            return self._data
-        results = []
-        for doc in self._data:
-            match = True
-            for key, value in cond.items():
-                if doc.get(key) != value:
-                    match = False
-                    break
-            if match:
-                results.append(doc)
-        return results
-
-    def find_one(self, cond=None):
-        for doc in self.find(cond):
-            return doc
-        return None
-
-    def update(self, updates, cond=None):
-        count = 0
-        for doc in self._data:
-            match = True
-            if cond:
-                for key, value in cond.items():
-                    if doc.get(key) != value:
-                        match = False
-                        break
-            if match:
-                doc.update(updates)
-                count += 1
-        if count > 0:
-            self._save()
-        return count
-
-    def remove(self, cond=None):
-        if cond is None:
-            count = len(self._data)
-            self._data = []
-        else:
-            count = 0
-            new_data = []
-            for doc in self._data:
-                match = True
-                for key, value in cond.items():
-                    if doc.get(key) != value:
-                        match = False
-                        break
-                if not match:
-                    new_data.append(doc)
-                else:
-                    count += 1
-            self._data = new_data
-        if count > 0:
-            self._save()
-        return count
-
-
-class JsonDB:
-    """简单的 JSON 数据库"""
-    def __init__(self, db_path):
-        self._db_path = db_path
-        self._tables = {}
-
-    def table(self, name):
-        if name not in self._tables:
-            self._tables[name] = JsonDbTable(self._db_path, name)
-        return self._tables[name]
+        return self._db.settings
 
 
 class ConversationModel:
@@ -175,22 +53,21 @@ class ConversationModel:
 
     def create(self, title="New Conversation"):
         doc = {
+            "_id": str(uuid.uuid4()),
             "title": title,
             "created_at": get_local_now().isoformat(),
             "updated_at": get_local_now().isoformat(),
             "messages": []
         }
-        result = self.collection.insert(doc)
-        return result['_id']
+        result = self.collection.insert_one(doc)
+        return doc["_id"]
 
     def get_all(self):
-        docs = self.collection.all()
-        # 按 updated_at 降序排序
-        docs.sort(key=lambda x: x.get('updated_at', ''), reverse=True)
+        docs = list(self.collection.find().sort("updated_at", -1))
         return [self._serialize(doc) for doc in docs]
 
     def get_by_id(self, id):
-        doc = self.collection.find_one({'_id': id})
+        doc = self.collection.find_one({"_id": id})
         return self._serialize(doc) if doc else None
 
     def add_message(self, id, model, role, content):
@@ -201,31 +78,31 @@ class ConversationModel:
             "content": content,
             "timestamp": get_local_now().isoformat()
         }
-        doc = self.collection.find_one({'_id': id})
-        if doc:
-            messages = doc.get('messages', [])
-            messages.append(message)
-            self.collection.update({
-                "messages": messages,
-                "updated_at": get_local_now().isoformat()
-            }, {"_id": id})
+        self.collection.update_one(
+            {"_id": id},
+            {
+                "$push": {"messages": message},
+                "$set": {"updated_at": get_local_now().isoformat()}
+            }
+        )
         return message
 
     def delete_message(self, id, message_id):
-        doc = self.collection.find_one({'_id': id})
-        if doc:
-            messages = [m for m in doc.get('messages', []) if m.get('id') != message_id]
-            self.collection.update({"messages": messages}, {"_id": id})
+        self.collection.update_one(
+            {"_id": id},
+            {"$pull": {"messages": {"id": message_id}}}
+        )
 
     def delete(self, id):
-        self.collection.remove({'_id': id})
+        self.collection.delete_one({"_id": id})
     
     def delete_all(self):
-        self.collection.remove({})
+        self.collection.delete_many({})
 
     def _serialize(self, doc):
         if not doc:
             return None
+        doc["id"] = doc.pop("_id")  # 将 _id 转换为 id
         return doc
 
 
@@ -235,21 +112,21 @@ class DocumentModel:
 
     def create(self, title="Untitled Document", content=""):
         doc = {
+            "_id": str(uuid.uuid4()),
             "title": title,
             "content": content,
             "created_at": get_local_now().isoformat(),
             "updated_at": get_local_now().isoformat()
         }
-        result = self.collection.insert(doc)
-        return result['_id']
+        self.collection.insert_one(doc)
+        return doc["_id"]
 
     def get_all(self):
-        docs = self.collection.all()
-        docs.sort(key=lambda x: x.get('updated_at', ''), reverse=True)
+        docs = list(self.collection.find().sort("updated_at", -1))
         return [self._serialize(doc) for doc in docs]
 
     def get_by_id(self, id):
-        doc = self.collection.find_one({'_id': id})
+        doc = self.collection.find_one({"_id": id})
         return self._serialize(doc) if doc else None
 
     def update(self, id, title=None, content=None):
@@ -258,14 +135,15 @@ class DocumentModel:
             update["title"] = title
         if content is not None:
             update["content"] = content
-        self.collection.update(update, {"_id": id})
+        self.collection.update_one({"_id": id}, {"$set": update})
 
     def delete(self, id):
-        self.collection.remove({'_id': id})
+        self.collection.delete_one({"_id": id})
 
     def _serialize(self, doc):
         if not doc:
             return None
+        doc["id"] = doc.pop("_id")
         return doc
 
 
@@ -275,7 +153,7 @@ class SettingsModel:
 
     def get(self):
         doc = self.collection.find_one()
-        return doc if doc else {}
+        return self._serialize(doc) if doc else {}
 
     def update(self, api_keys=None, enabled_models=None, mongodb_uri=None):
         update = {}
@@ -287,9 +165,14 @@ class SettingsModel:
             update["mongodb_uri"] = mongodb_uri
 
         if self.collection.find_one():
-            # JsonDbTable doesn't support $set, use plain update
-            self.collection.update(update, {})
+            self.collection.update_one({}, {"$set": update})
         else:
             update["api_keys"] = api_keys or {}
             update["enabled_models"] = enabled_models or []
-            self.collection.insert(update)
+            self.collection.insert_one(update)
+
+    def _serialize(self, doc):
+        if not doc:
+            return None
+        doc["id"] = doc.pop("_id")
+        return doc

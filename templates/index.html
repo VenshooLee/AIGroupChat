@@ -368,6 +368,14 @@
             background: #fafbfc;
         }
 
+        /* 历史记录视图中的用户消息样式 */
+        .chat-messages.history-view .message-user {
+            background: var(--user-bg);
+            margin-left: auto;
+            border: 1px solid rgba(37, 99, 235, 0.15);
+            border-radius: 12px;
+        }
+
         .message {
             margin-bottom: 16px;
             padding: 12px 16px;
@@ -380,6 +388,7 @@
             background: var(--user-bg);
             margin-left: auto;
             border: 1px solid rgba(37, 99, 235, 0.15);
+            border-radius: 12px;
         }
 
         .message-assistant {
@@ -1177,7 +1186,6 @@
         let discussModels = [];
         let discussMessage = '';
         let discussCurrentRound = 0;
-        let discussUserMessageSaved = false; // Track if user message has been saved to history
         let maxDiscussRounds = 20; // Maximum rounds as safety limit
         let lastDiscussionSummary = '';
         let currentRespondingModel = ''; // Track current responding model
@@ -1251,11 +1259,11 @@
                 return;
             }
             container.innerHTML = conversations.map(conv => `
-                <div class="conversation-item ${currentConversationId === conv._id ? 'active' : ''}">
-                    <div class="conversation-content" onclick="loadConversation('${conv._id}')">
+                <div class="conversation-item ${currentConversationId === conv.id ? 'active' : ''}">
+                    <div class="conversation-content" onclick="loadConversation('${conv.id}')">
                         ${conv.title || 'Untitled'}
                     </div>
-                    <button class="conversation-delete" onclick="deleteConversation('${conv._id}', event)" title="Delete conversation">×</button>
+                    <button class="conversation-delete" onclick="deleteConversation('${conv.id}', event)" title="Delete conversation">×</button>
                 </div>
             `).join('');
         }
@@ -1683,12 +1691,12 @@
                 return;
             }
             container.innerHTML = documents.map(doc => `
-                <div class="doc-item ${currentDocumentId === doc._id ? 'active' : ''}">
-                    <div class="doc-item-content" onclick="loadDocument('${doc._id}')">
+                <div class="doc-item ${currentDocumentId === doc.id ? 'active' : ''}">
+                    <div class="doc-item-content" onclick="loadDocument('${doc.id}')">
                         <div class="doc-item-title">${doc.title}</div>
                         <div class="doc-item-date">${formatDate(doc.updated_at)}</div>
                     </div>
-                    <button class="doc-delete-btn" onclick="deleteDocument('${doc._id}', event)" title="Delete">×</button>
+                    <button class="doc-delete-btn" onclick="deleteDocument('${doc.id}', event)" title="Delete">×</button>
                 </div>
             `).join('');
         }
@@ -1733,11 +1741,7 @@
             }
 
             const message = document.createElement('div');
-            // 在历史视图中隐藏用户消息
-            const roleClass = (role === 'user' && container.classList.contains('history-view')) 
-                ? '' 
-                : `message-${role}`;
-            message.className = roleClass ? `message ${roleClass}` : 'message';
+            message.className = `message message-${role}`;
             const header = model ? `<div class="message-header"><span class="message-model">${getModelIcon(model)}<span style="color: ${getModelColor(model)}">${model}</span></span></div>` : '';
             const actions = role === 'assistant' && model ? `
                 <div class="message-actions">
@@ -2029,7 +2033,6 @@
             discussMessage = message;
             discussModels = [...selectedModels];
             discussCurrentRound = 0;
-            discussUserMessageSaved = false;
             conclusionReachedModels = [];
             
             // Update UI
@@ -2113,15 +2116,14 @@
             }
             
             // Stream response from current model
-            // Only save user message once on first request
+            // Pass original_message on first round only to save the topic, not on subsequent rounds
             const requestBody = {
                 message: context,
                 models: [currentModel],
                 conversation_id: currentConversationId
             };
-            if (!discussUserMessageSaved) {
+            if (discussCurrentRound === 0) {
                 requestBody.original_message = discussMessage;
-                discussUserMessageSaved = true;
             }
             const response = await fetch('/api/chat/stream', {
                 method: 'POST',
@@ -2274,7 +2276,6 @@
             discussModels = [];
             conclusionReachedModels = [];
             discussCurrentRound = 0;
-            discussUserMessageSaved = false;
             
             // Reset UI
             discussBtn.className = 'send-btn discuss-btn';
@@ -2387,7 +2388,7 @@
             try {
                 const response = await fetch(`/api/documents/${id}`);
                 const doc = await response.json();
-                currentDocumentId = doc._id;
+                currentDocumentId = doc.id;
                 document.getElementById('docTitle').value = doc.title;
 
                 // Set editor content - use direct innerHTML for better compatibility
