@@ -1177,6 +1177,7 @@
         let discussModels = [];
         let discussMessage = '';
         let discussCurrentRound = 0;
+        let discussUserMessageSaved = false; // Track if user message has been saved to history
         let maxDiscussRounds = 20; // Maximum rounds as safety limit
         let lastDiscussionSummary = '';
         let currentRespondingModel = ''; // Track current responding model
@@ -2028,6 +2029,7 @@
             discussMessage = message;
             discussModels = [...selectedModels];
             discussCurrentRound = 0;
+            discussUserMessageSaved = false;
             conclusionReachedModels = [];
             
             // Update UI
@@ -2111,14 +2113,15 @@
             }
             
             // Stream response from current model
-            // Only pass original_message on first round to avoid duplicate entries
+            // Only save user message once on first request
             const requestBody = {
                 message: context,
                 models: [currentModel],
                 conversation_id: currentConversationId
             };
-            if (discussCurrentRound === 0) {
+            if (!discussUserMessageSaved) {
                 requestBody.original_message = discussMessage;
+                discussUserMessageSaved = true;
             }
             const response = await fetch('/api/chat/stream', {
                 method: 'POST',
@@ -2271,6 +2274,7 @@
             discussModels = [];
             conclusionReachedModels = [];
             discussCurrentRound = 0;
+            discussUserMessageSaved = false;
             
             // Reset UI
             discussBtn.className = 'send-btn discuss-btn';
