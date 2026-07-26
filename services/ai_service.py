@@ -162,7 +162,7 @@ class AIService:
                 })
 
             data = {
-                "model": "MiniMax-M2.7-highspeed",
+                "model": "MiniMax-M3",
                 "max_tokens": 8192,
                 "messages": minimax_messages
             }
@@ -558,7 +558,7 @@ class AIService:
                     "content": m["content"]
                 })
             data = {
-                "model": "MiniMax-M2.7-highspeed",
+                "model": "MiniMax-M3",
                 "max_tokens": 8192,
                 "stream": True,
                 "messages": minimax_messages
