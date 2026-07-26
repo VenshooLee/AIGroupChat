@@ -309,7 +309,7 @@ class AIService:
                 "Content-Type": "application/json"
             }
             data = {
-                "model": "kimi-k3",
+                "model": "kimi-k2.6",
                 "messages": self._get_messages_with_system(messages, system_prompt),
                 "temperature": 0.7
             }
@@ -697,7 +697,7 @@ class AIService:
                 "Content-Type": "application/json"
             }
             data = {
-                "model": "kimi-k3",
+                "model": "kimi-k2.6",
                 "messages": self._get_messages_with_system(messages, system_prompt),
                 "temperature": 0.7,
                 "stream": True
