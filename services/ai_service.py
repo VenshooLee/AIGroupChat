@@ -336,7 +336,7 @@ class AIService:
                 "Content-Type": "application/json"
             }
             data = {
-                "model": "glm-4",
+                "model": "glm-5.2",
                 "messages": self._get_messages_with_system(messages, system_prompt),
                 "temperature": 0.7,
                 "max_tokens": 8192
@@ -739,7 +739,7 @@ class AIService:
                 "Content-Type": "application/json"
             }
             data = {
-                "model": "glm-4",
+                "model": "glm-5.2",
                 "messages": self._get_messages_with_system(messages, system_prompt),
                 "temperature": 0.7,
                 "max_tokens": 8192,
