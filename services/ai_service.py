@@ -122,7 +122,7 @@ class AIService:
                 "Content-Type": "application/json"
             }
             data = {
-                "model": "deepseek-chat",
+                "model": "deepseek-v4-pro",
                 "messages": self._get_messages_with_system(messages, system_prompt),
                 "temperature": 0.7,
                 "max_tokens": 4096
@@ -309,7 +309,7 @@ class AIService:
                 "Content-Type": "application/json"
             }
             data = {
-                "model": "moonshot-v1-8k",
+                "model": "kimi-k3",
                 "messages": self._get_messages_with_system(messages, system_prompt),
                 "temperature": 0.7
             }
@@ -507,7 +507,7 @@ class AIService:
                 "Content-Type": "application/json"
             }
             data = {
-                "model": "deepseek-chat",
+                "model": "deepseek-v4-pro",
                 "messages": self._get_messages_with_system(messages, system_prompt),
                 "temperature": 0.7,
                 "max_tokens": 4096,
@@ -697,7 +697,7 @@ class AIService:
                 "Content-Type": "application/json"
             }
             data = {
-                "model": "moonshot-v1-8k",
+                "model": "kimi-k3",
                 "messages": self._get_messages_with_system(messages, system_prompt),
                 "temperature": 0.7,
                 "stream": True
