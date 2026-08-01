@@ -311,7 +311,7 @@ class AIService:
             data = {
                 "model": "kimi-k2.6",
                 "messages": self._get_messages_with_system(messages, system_prompt),
-                "temperature": 0.7
+                "temperature": 1
             }
             response = requests.post(
                 "https://api.moonshot.cn/v1/chat/completions",
@@ -322,7 +322,13 @@ class AIService:
             response.raise_for_status()
             return {"content": response.json()["choices"][0]["message"]["content"], "thinking": None}
         except requests.exceptions.RequestException as e:
-            return {"content": f"[Error: Kimi API request failed - {str(e)}]", "thinking": None}
+            error_detail = ""
+            if hasattr(e, "response") and e.response is not None:
+                try:
+                    error_detail = f" | Response: {e.response.text}"
+                except Exception:
+                    error_detail = f" | Status: {e.response.status_code}"
+            return {"content": f"[Error: Kimi API request failed - {str(e)}{error_detail}]", "thinking": None}
 
     def _chat_glm(self, messages: list, system_prompt: str) -> dict:
         """GLM (智谱AI) API"""
@@ -699,7 +705,7 @@ class AIService:
             data = {
                 "model": "kimi-k2.6",
                 "messages": self._get_messages_with_system(messages, system_prompt),
-                "temperature": 0.7,
+                "temperature": 1,
                 "stream": True
             }
             response = requests.post(
@@ -726,7 +732,13 @@ class AIService:
                         except:
                             pass
         except Exception as e:
-            yield f"[Error: {str(e)}]"
+            error_detail = ""
+            if hasattr(e, "response") and e.response is not None:
+                try:
+                    error_detail = f" | Response: {e.response.text}"
+                except Exception:
+                    error_detail = f" | Status: {e.response.status_code}"
+            yield f"[Error: {str(e)}{error_detail}]"
 
     def _chat_glm_stream(self, messages: list, system_prompt: str):
         api_key = self.api_keys.get("glm")

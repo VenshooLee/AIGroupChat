@@ -1110,7 +1110,7 @@
                     <span class="chat-hint">Enter to send, Shift+Enter for new line</span>
                     <div class="chat-actions">
                         <button class="send-btn discuss-btn" id="discussBtn" title="Start group discussion"><img src="/static/icons/discuss-line.svg" class="btn-icon-white" alt="Discuss">Discuss</button>
-                        <button class="send-btn" id="sendBtn" onclick="sendMessage()" title="Send message"><img src="/static/icons/chat-2-line.svg" class="btn-icon-white" alt="Chat">Chat</button>
+                        <button class="send-btn" id="sendBtn" onclick="sendMessage()" title="Send message"><img src="/static/icons/chat-2-line.svg" class="btn-icon-white" alt="Ask">Ask</button>
                     </div>
                 </div>
             </div>
@@ -1986,7 +1986,7 @@
             } finally {
                 // Reset to send button
                 sendBtn.className = 'send-btn';
-                sendBtn.innerHTML = '<img src="/static/icons/chat-2-line.svg" class="btn-icon-white" alt="Chat">Send';
+                sendBtn.innerHTML = '<img src="/static/icons/chat-2-line.svg" class="btn-icon-white" alt="Ask">Ask';
                 sendBtn.onclick = sendMessage;
                 isStreaming = false;
             }
